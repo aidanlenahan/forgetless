@@ -18,8 +18,11 @@ export interface ClientConfig {
 	allowSignup: boolean;
 	demoEnabled: boolean;
 	oauth: { google: boolean; github: boolean };
-	providers: { tmdb: boolean };
+	providers: { tmdb: boolean; osm?: boolean };
+	/** Tile URL template for place maps ({z}/{x}/{y}); null hides maps. */
+	mapTilesUrl?: string | null;
 	passwordResetEmail: boolean;
+	notifications: { email: boolean; push: boolean };
 }
 
 const USER_KEY = 'app:lastUser';
@@ -29,8 +32,10 @@ const defaultConfig: ClientConfig = {
 	allowSignup: true,
 	demoEnabled: false,
 	oauth: { google: false, github: false },
-	providers: { tmdb: false },
-	passwordResetEmail: false
+	providers: { tmdb: false, osm: false },
+	mapTilesUrl: null,
+	passwordResetEmail: false,
+	notifications: { email: false, push: false }
 };
 
 function readLS<T>(key: string): T | null {

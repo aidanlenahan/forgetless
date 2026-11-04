@@ -61,3 +61,19 @@ Tracks PRD progress. `[x]` done · `[~]` partial · `[ ]` not started.
   - [ ] Deleting a list doesn't delete its catalogs (they become unreachable, not visible). `wipeUserData`
     (JSON import "replace") keeps catalogs.
   - [ ] No UI yet to rename a catalog or change its mapping (delete and re-upload).
+
+## Phase 3: Remind me
+- [x] Places provider (`osm`): `src/lib/server/providers/places.ts`. Photon search (POIs first, streets and
+  addresses only as a fallback, Eat/Drink filtered to amenity/shop/craft tags, ranking by category), details
+  from the picked Photon feature plus an optional Nominatim `/lookup` (extratags), 30-day details cache,
+  instance-wide throttles (Photon ≤ 5 req/s, Nominatim ≤ 1 req/s), optional rounded location bias ("Near me").
+  New users' Eat/Visit/Drink use it; existing users can pick it in Settings. Demo places link to real OSM
+  elements. Item pages show address, hours, links and a 3×3-tile map; OSM attribution everywhere. Unit + e2e
+  tests (e2e stubs the provider routes).
+- Gaps:
+  - [ ] Details for a place not seen in a recent search depend on Nominatim (the in-memory feature cache is lost
+    on restart); with `NOMINATIM_URL=off` such a select fails until the user searches again.
+  - [ ] No saved "home area" bias yet; without "Near me", bare names (e.g. "katz") rank worldwide.
+  - [ ] Opening hours are shown as OSM writes them (no "open now", no localisation).
+  - [ ] Imports don't match places (Letterboxd/IMDb/Goodreads only feed Watch/Read).
+  - [ ] Map is a static 3×3 tile block at zoom 16 (no pan/zoom, no retina tiles).

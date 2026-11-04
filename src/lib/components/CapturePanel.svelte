@@ -10,7 +10,15 @@
 	import { session } from '#lib/client/session.svelte.ts';
 	import { syncStatus } from '#lib/client/sync.ts';
 	import { saveItem } from '#lib/client/mutations.ts';
-	import { searchProvider, selectProviderHit, kindLabel } from '#lib/client/provider.ts';
+	import {
+		searchProvider,
+		selectProviderHit,
+		kindLabel,
+		providerEnabled,
+		placePreference,
+		OSM_ATTRIBUTION
+	} from '#lib/client/provider.ts';
+	import { nearMe, setNearMe, ensurePosition, nearMePos } from '#lib/client/location.svelte.ts';
 	import { titleMatches, distinctValues, parseTags, normalize } from '#lib/client/queries.ts';
 	import { timeAgo } from '#lib/client/format.ts';
 	import {
@@ -76,7 +84,14 @@
 
 	const category = $derived(categoryId ? store.categoryById.get(categoryId) : undefined);
 	const online = $derived($syncStatus.online);
-	const providerOn = $derived(category?.provider === 'tmdb' && session.config.providers.tmdb);
+	const providerId = $derived(category?.provider ?? null);
+	const providerOn = $derived(providerEnabled(session.config, providerId));
+	const isPlaces = $derived(providerOn && providerId === 'osm');
+	const prefer = $derived(isPlaces ? placePreference(category) : null);
+	$effect(() => {
+		if (isPlaces) void ensurePosition();
+	});
+	const bias = $derived(isPlaces ? nearMePos() : null);
 	const q = $derived(query.trim());
 	const own = $derived(titleMatches(store.items, q, 5));
 
@@ -138,7 +153,9 @@
 			pstate = 'offline';
 			return;
 		}
-		const key = `${text.toLowerCase()}`;
+		const pid = providerId as string;
+		const extras = isPlaces ? { lat: bias?.lat, lon: bias?.lon, prefer } : {};
+		const key = `${pid}|${prefer ?? ''}|${bias ? `${bias.lat},${bias.lon}` : ''}|${text.toLowerCase()}`;
 		const cached = hitCache.get(key);
 		if (cached) {
 			hits = cached;
@@ -149,7 +166,7 @@
 		const ctrl = new AbortController();
 		const t = setTimeout(async () => {
 			try {
-				const h = (await searchProvider('tmdb', text, ctrl.signal)).slice(0, 8);
+				const h = (await searchProvider(pid, text, ctrl.signal, extras)).slice(0, 8);
 				hitCache.set(key, h);
 				hits = h;
 				pstate = 'done';
@@ -202,13 +219,16 @@
 	async function draftFromHit(hit: CatalogHit): Promise<Draft> {
 		selecting = hit.externalId;
 		try {
-			const entry = await selectProviderHit('tmdb', hit);
+			const entry = await selectProviderHit(hit.source, hit);
 			return {
 				title: entry.title,
 				catalogEntryId: entry.id,
 				needsMatch: false,
 				imageUrl: entry.imageUrl,
-				sub: [entry.year, kindLabel(entry.kind)].filter(Boolean).join(' · ')
+				sub:
+					entry.source === 'osm'
+						? entry.subtitle || kindLabel(entry.kind)
+						: [entry.year, kindLabel(entry.kind)].filter(Boolean).join(' · ')
 			};
 		} catch {
 			toast("Couldn't load details. Saving as custom; you can link the match later.", {
@@ -457,10 +477,27 @@
 				{/if}
 
 				{#if providerOn}
-					<div class="group" role="presentation">
-						From TMDB
+					<div class="group" role="presentation" data-testid="provider-group">
+						{isPlaces ? 'Places' : 'From TMDB'}
 						{#if pstate === 'loading'}<span class="spinner" aria-label="Searching"></span>{/if}
+						{#if isPlaces}
+							<span class="grow"></span>
+							<button
+								type="button"
+								class="near"
+								aria-pressed={nearMe.enabled}
+								data-testid="near-me"
+								title="Sort places by distance from you. Your location is rounded to about 1 km."
+								onclick={() => setNearMe(!nearMe.enabled)}
+								><Icon name="pin" size={13} />{nearMe.status === 'locating'
+									? 'Locating…'
+									: 'Near me'}</button
+							>
+						{/if}
 					</div>
+					{#if isPlaces && nearMe.status === 'denied'}
+						<div class="note quiet">Location is off, so places aren't sorted by distance.</div>
+					{/if}
 					{#if pstate === 'offline' || !online}
 						<div class="note">
 							You're offline. It saves as a custom item and you can match it later.
@@ -470,7 +507,9 @@
 							{perror || 'Search is unavailable'}. You can still save it as a custom item.
 						</div>
 					{:else if pstate === 'done' && !hits.length}
-						<div class="note">TMDB has nothing by that name.</div>
+						<div class="note">
+							{isPlaces ? 'No places by that name.' : 'TMDB has nothing by that name.'}
+						</div>
 					{/if}
 					{#if online}
 						{#each hits as hit, j (hit.source + hit.externalId + hit.kind)}
@@ -487,16 +526,29 @@
 								onkeydown={() => {}}
 								onpointerenter={() => (active = i)}
 							>
-								<Poster src={hit.imageUrl} icon={category?.icon} title={hit.title} width={32} />
+								{#if hit.source === 'osm'}
+									<span class="placeicon" aria-hidden="true">{category?.icon ?? '📍'}</span>
+								{:else}
+									<Poster src={hit.imageUrl} icon={category?.icon} title={hit.title} width={32} />
+								{/if}
 								<span class="grow">
 									<span class="t truncate">{hit.title}</span>
-									<span class="m"
-										>{[hit.year, kindLabel(hit.kind)].filter(Boolean).join(' · ')}</span
+									<span class="m truncate"
+										>{hit.source === 'osm'
+											? hit.subtitle || kindLabel(hit.kind)
+											: [hit.year, kindLabel(hit.kind)].filter(Boolean).join(' · ')}</span
 									>
 								</span>
 								{#if selecting === hit.externalId}<span class="spinner"></span>{/if}
 							</div>
 						{/each}
+						{#if isPlaces && hits.length}
+							<p class="osm-attr" data-testid="osm-attribution">
+								Place data <a href={OSM_ATTRIBUTION.url} target="_blank" rel="noopener noreferrer"
+									>{OSM_ATTRIBUTION.text}</a
+								>
+							</p>
+						{/if}
 					{/if}
 				{/if}
 
@@ -745,6 +797,63 @@
 		padding: var(--s-1) var(--s-2) var(--s-2);
 		font-size: var(--fs-sm);
 		color: var(--text-2);
+	}
+	.note.quiet {
+		color: var(--text-3);
+		font-size: var(--fs-xs);
+	}
+	.near {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		min-height: 28px;
+		padding: 0 var(--s-2);
+		border: 1px solid var(--border);
+		border-radius: var(--r-pill);
+		background: transparent;
+		color: var(--text-2);
+		font: inherit;
+		font-size: var(--fs-xs);
+		font-weight: 600;
+		cursor: pointer;
+		transition:
+			background-color var(--dur-1) ease,
+			color var(--dur-1) ease,
+			border-color var(--dur-1) ease;
+	}
+	.near:hover {
+		border-color: var(--border-strong);
+		color: var(--text);
+	}
+	.near[aria-pressed='true'] {
+		border-color: transparent;
+		background: var(--accent-soft);
+		color: var(--accent-text);
+	}
+	@media (pointer: coarse) {
+		.near {
+			min-height: 36px;
+		}
+	}
+	.placeicon {
+		flex: none;
+		display: grid;
+		place-items: center;
+		width: 32px;
+		height: 32px;
+		border-radius: var(--r-sm);
+		background: var(--tint-bg, var(--surface-2));
+		font-size: 16px;
+		line-height: 1;
+	}
+	.osm-attr {
+		padding: var(--s-1) var(--s-2) 0;
+		font-size: var(--fs-xs);
+		color: var(--text-3);
+	}
+	.osm-attr a {
+		color: inherit;
+		text-decoration: underline;
 	}
 	.opt {
 		display: flex;

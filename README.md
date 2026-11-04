@@ -49,6 +49,32 @@ Watch still works, but only for custom items.
    ```
 5. `docker compose up -d` (restart the container; no rebuild needed).
 
+### Places (Eat, Visit and Drink autocomplete)
+
+New accounts get **Eat**, **Visit** and **Drink** lists linked to places from
+[OpenStreetMap](https://www.openstreetmap.org/). It needs no key and is on by default. Existing lists keep their
+setting; pick **Places (OpenStreetMap)** under **Settings → Lists → Database** to turn it on for a list.
+
+- Search goes to [Photon](https://photon.komoot.io/) (komoot's search-as-you-type geocoder). Nominatim isn't
+  used for search because its usage policy forbids autocomplete.
+- When you pick a place, the server builds its details (address, cuisine, opening hours, website, phone,
+  coordinates) from the search result plus one optional Nominatim `/lookup` call, and caches them for 30 days.
+  If Nominatim fails or is busy, the details come from the search result alone.
+- The server is polite to the public servers: searches are cached, rate-limited per user and per IP, and
+  throttled for the whole instance (at most 5 Photon requests and 1 Nominatim request per second). Nominatim
+  calls carry a `Forgetless/<version>` User-Agent; set `APP_CONTACT_EMAIL` so the operators can reach you.
+- **Near me** in quick capture is off until you turn it on. It then asks the browser for your location once and
+  sends it rounded to about 1 km, only with place searches.
+- Place pages show a small map made of 9 tiles from `tile.openstreetmap.org` (cached by the service worker),
+  plus links to OpenStreetMap and to directions.
+- OpenStreetMap data is licensed under the [ODbL](https://www.openstreetmap.org/copyright). The app shows
+  "© OpenStreetMap contributors" under place results, on place pages and on the map; keep it if you change the UI.
+
+For a busy or private instance, run your own Photon (see the
+[Photon README](https://github.com/komoot/photon#installation): one Java process plus a downloaded country or
+planet index) and point `PHOTON_URL` at it. Do the same for Nominatim with `NOMINATIM_URL`, or set it to `off`.
+Set `APP_PLACES_ENABLED=false` to turn places off entirely.
+
 ### Running on another host, port or behind a proxy
 
 `APP_ORIGIN` must be the URL people type into the browser, for example `https://forgetless.example.com`.
@@ -77,6 +103,11 @@ All settings come from environment variables (see [`.env.example`](.env.example)
 | `APP_DEMO_ENABLED` | `true` | Shows **Try the demo** (guest accounts that are wiped after 24 h). |
 | `APP_GUEST_ITEM_CAP` | `500` | Maximum number of items per demo guest. |
 | `TMDB_API_KEY` | _(empty)_ | TMDB v4 API Read Access Token. It enables the Watch autocomplete. |
+| `APP_PLACES_ENABLED` | `true` | Places autocomplete (OpenStreetMap) for Eat, Visit and Drink. |
+| `PHOTON_URL` | `https://photon.komoot.io` | Photon server used for place search. Point it at your own for heavy use. |
+| `NOMINATIM_URL` | `https://nominatim.openstreetmap.org` | Nominatim server for place details (`/lookup`, max 1 req/s). `off` skips it. |
+| `APP_CONTACT_EMAIL` | _(empty)_ | Contact sent to Nominatim in the User-Agent and `email` parameter, as its usage policy asks. |
+| `APP_MAP_TILES_URL` | `https://tile.openstreetmap.org/{z}/{x}/{y}.png` | Map tiles on place pages. `off` hides the map. |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | _(empty)_ | Google OAuth. It's enabled only when both are set. Redirect URI: `<APP_ORIGIN>/api/auth/callback/google`. |
 | `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | _(empty)_ | GitHub OAuth. It's enabled only when both are set. Callback URL: `<APP_ORIGIN>/api/auth/callback/github`. |
 | `SMTP_URL` | _(empty)_ | SMTP connection URL for password-reset emails, e.g. `smtps://user:pass@smtp.example.com:465`. Without it, use the admin CLI. |
@@ -216,5 +247,8 @@ contributions will require signing a CLA (see [docs/PRD.md](docs/PRD.md) §11).
 ## Attribution
 
 This product uses the TMDB API but is not endorsed or certified by TMDB.
+
+Place data and map tiles © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright), available under
+the Open Database License. Place search by [Photon](https://photon.komoot.io/) (komoot).
 
 <a href="https://www.themoviedb.org/"><img src="https://www.themoviedb.org/assets/2/v4/logos/v2/blue_short-8e7b30f73a4020692ccca9c88bafe5dcb6f8a62a4c6bc55cd9ba82bb2cd95f6c.svg" alt="TMDB logo" height="16"></a>

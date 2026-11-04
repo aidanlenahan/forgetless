@@ -61,7 +61,13 @@ const makeLimits = () => ({
 	/** catalog previews / creates / deletes */
 	catalogWriteUser: new TokenBucket(30, HOUR),
 	catalogSearchUser: new TokenBucket(240, MIN),
-	demoIp: new TokenBucket(10, HOUR)
+	demoIp: new TokenBucket(10, HOUR),
+	/** notification settings reads/writes, previews, push (un)subscribe */
+	notifyUser: new TokenBucket(60, MIN),
+	/** "Send test" (real emails / pushes) */
+	notifyTestUser: new TokenBucket(5, HOUR),
+	/** /a/<token> action links (no session, so keyed by IP) */
+	notifyActionIp: new TokenBucket(30, MIN)
 });
 // Merge so buckets added later still appear after a dev hot reload kept the old object.
 export const limits = (g.__appLimits = { ...makeLimits(), ...g.__appLimits });

@@ -102,7 +102,11 @@
 			/* ignore */
 		}
 	}
-	const hasPosters = $derived(category?.provider === 'tmdb' || scope.some((i) => i.catalogEntryId));
+	// Places (OSM) have no artwork, so a poster grid only makes sense when some entry has an image.
+	const hasPosters = $derived(
+		category?.provider === 'tmdb' ||
+			scope.some((i) => i.catalogEntryId && store.catalog.get(i.catalogEntryId)?.imageUrl)
+	);
 </script>
 
 <svelte:head><title>{title} · Forgetless</title></svelte:head>

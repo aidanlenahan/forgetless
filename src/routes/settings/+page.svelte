@@ -11,7 +11,9 @@
 	import CategoryCatalogs from '#lib/components/import/CategoryCatalogs.svelte';
 	import { catalogIndex, refreshCatalogs } from '#lib/client/catalogs.svelte.ts';
 	import Icon from '#lib/components/Icon.svelte';
+	import NotificationSettings from '#lib/components/NotificationSettings.svelte';
 	import { APP_NAME } from '#lib/shared/config.ts';
+	import { PROVIDER_LABELS, OSM_ATTRIBUTION } from '#lib/client/provider.ts';
 	import type { Category, ExportFile } from '#lib/shared/types.ts';
 
 	const user = $derived(session.user);
@@ -323,12 +325,18 @@
 								onchange={(e) => patch(c, { provider: e.currentTarget.value || null })}
 							>
 								<option value="">None (custom only)</option>
-								<option value="tmdb">TMDB (movies & TV)</option>
+								{#each Object.entries(PROVIDER_LABELS) as [pid, plabel] (pid)}
+									<option value={pid}>{plabel}</option>
+								{/each}
 							</select>
 						</label>
 						{#if c.provider === 'tmdb' && !session.config.providers.tmdb}
 							<span class="xs faint" title="Set TMDB_API_KEY on the server to enable autocomplete"
 								>TMDB isn't configured on this server</span
+							>
+						{:else if c.provider === 'osm' && !session.config.providers.osm}
+							<span class="xs faint" title="Set APP_PLACES_ENABLED=true on the server"
+								>Places are turned off on this server</span
 							>
 						{/if}
 						<div class="grow"></div>
@@ -465,6 +473,8 @@
 		</div>
 	</section>
 
+	<NotificationSettings />
+
 	<section class="card pad" id="account" aria-labelledby="acct-h">
 		<h2 id="acct-h">Account</h2>
 		<dl class="acct">
@@ -488,7 +498,10 @@
 
 	<p class="xs faint about">
 		{APP_NAME}. Movie and TV data comes from TMDB. This product uses the TMDB API but is not
-		endorsed or certified by TMDB.
+		endorsed or certified by TMDB. Place data
+		<a href={OSM_ATTRIBUTION.url} target="_blank" rel="noopener noreferrer"
+			>{OSM_ATTRIBUTION.text}</a
+		>, under the Open Database License.
 	</p>
 </div>
 

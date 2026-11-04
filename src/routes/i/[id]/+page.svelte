@@ -6,7 +6,14 @@
 	import { saveItem, deleteItem, deleteLogEntry } from '#lib/client/mutations.ts';
 	import { distinctValues, parseTags } from '#lib/client/queries.ts';
 	import { timeAgo, formatDay, isUrl, ratingLabel } from '#lib/client/format.ts';
-	import { entryMeta } from '#lib/client/provider.ts';
+	import {
+		entryMeta,
+		providerEnabled,
+		PROVIDER_SHORT,
+		OSM_ATTRIBUTION
+	} from '#lib/client/provider.ts';
+	import { placeData, openingHoursLines } from '#lib/shared/places.ts';
+	import PlaceMap from '#lib/components/PlaceMap.svelte';
 	import { confirmDialog, toast } from '#lib/client/ui.svelte.ts';
 	import Poster from '#lib/components/Poster.svelte';
 	import StarRating from '#lib/components/StarRating.svelte';
@@ -14,6 +21,7 @@
 	import LinkMatchModal from '#lib/components/LinkMatchModal.svelte';
 	import CustomField from '#lib/components/CustomField.svelte';
 	import Icon from '#lib/components/Icon.svelte';
+	import { snoozes, refreshSnoozes } from '#lib/client/snoozes.svelte.ts';
 	import { tintStyle } from '#lib/client/visual.ts';
 	import {
 		STATUSES,
@@ -28,16 +36,42 @@
 	const category = $derived(item ? store.categoryById.get(item.categoryId) : undefined);
 	const entry = $derived(item?.catalogEntryId ? store.catalog.get(item.catalogEntryId) : undefined);
 	const logs = $derived(store.logsByItem.get(id) ?? []);
+	const snoozedUntil = $derived.by(() => {
+		const u = snoozes.byItem[id];
+		return u && u > Date.now() ? u : null;
+	});
+	void refreshSnoozes();
 	const latest = $derived(logs.find((l) => l.rating != null)?.rating ?? null);
 	const recommenders = $derived(distinctValues(store.items.map((i) => i.recommendedBy)));
 	const allTags = $derived(distinctValues(store.items.flatMap((i) => i.tags)));
 	const canMatch = $derived(
 		!!item &&
-			category?.provider === 'tmdb' &&
-			session.config.providers.tmdb &&
+			providerEnabled(session.config, category?.provider) &&
 			(!item.catalogEntryId || item.needsMatch)
 	);
 	const isTmdb = $derived(entry?.source === 'tmdb');
+	const matchOsm = $derived(category?.provider === 'osm');
+	const isPlace = $derived(entry?.source === 'osm');
+	const place = $derived(isPlace ? placeData(entry?.data) : null);
+	const hours = $derived(openingHoursLines(place?.opening_hours ?? null));
+	const hasCoords = $derived(place?.lat != null && place?.lon != null);
+	const directionsUrl = $derived(
+		hasCoords ? `https://www.openstreetmap.org/directions?to=${place!.lat}%2C${place!.lon}` : null
+	);
+	const geoUrl = $derived(
+		hasCoords
+			? `geo:${place!.lat},${place!.lon}?q=${place!.lat},${place!.lon}(${encodeURIComponent(entry?.title ?? '')})`
+			: null
+	);
+	const telUrl = $derived(place?.phone ? `tel:${place.phone.replace(/[^\d+]/g, '')}` : null);
+	const websiteLabel = $derived.by(() => {
+		if (!place?.website) return null;
+		try {
+			return new URL(place.website).hostname.replace(/^www\./, '');
+		} catch {
+			return place.website;
+		}
+	});
 
 	let logOpen = $state(false);
 	let logEditing = $state<LogEntry | null>(null);
@@ -201,6 +235,15 @@
 				<p class="meta">
 					{#if entry && entryMeta(entry)}<span>{entryMeta(entry)}</span>{/if}
 					<span>Saved {timeAgo(item.createdAt)}</span>
+					{#if snoozedUntil}<small
+							class="pill"
+							title="Left out of digests and reminders until then"
+							data-testid="snoozed-pill"
+							>Snoozed until {new Date(snoozedUntil).toLocaleDateString(undefined, {
+								month: 'short',
+								day: 'numeric'
+							})}</small
+						>{/if}
 				</p>
 				{#if tagline}<p class="tagline">{tagline}</p>{/if}
 				<div class="controls">
@@ -222,7 +265,14 @@
 				</div>
 				{#if item.needsMatch}
 					<p class="needs small">
-						You saved this offline as a custom item. Link it to TMDB to get the poster and details.
+						{#if matchOsm}
+							You saved this offline as a custom item. Link it to a place to get the address and
+							map.
+						{:else}
+							You saved this offline as a custom item. Link it to {PROVIDER_SHORT[
+								category?.provider ?? 'tmdb'
+							] ?? 'TMDB'} to get the poster and details.
+						{/if}
 					</p>
 				{/if}
 				{#if canMatch}
@@ -230,11 +280,83 @@
 						type="button"
 						class="btn sm"
 						onclick={() => (linkOpen = true)}
-						data-testid="link-match"><Icon name="link" size={15} /> Link to TMDB</button
+						data-testid="link-match"
+						><Icon name={matchOsm ? 'pin' : 'link'} size={15} />
+						{matchOsm ? 'Link to a place' : 'Link to TMDB'}</button
 					>
 				{/if}
 			</div>
 		</header>
+
+		{#if isPlace && place}
+			<section class="place" aria-label="Place" data-testid="place-info">
+				<div class="pinfo">
+					{#if place.formatted_address}
+						<p class="addr" data-testid="place-address">{place.formatted_address}</p>
+					{/if}
+					{#if place.cuisine || place.type_label || hours.length}
+						<dl class="facts">
+							{#if place.type_label}<div>
+									<dt>Type</dt>
+									<dd>{place.type_label}</dd>
+								</div>{/if}
+							{#if place.cuisine}<div>
+									<dt>Cuisine</dt>
+									<dd>{place.cuisine}</dd>
+								</div>{/if}
+							{#if hours.length}<div class="hours">
+									<dt>Hours</dt>
+									<dd>
+										{#each hours as h (h)}<span>{h}</span>{/each}
+									</dd>
+								</div>{/if}
+						</dl>
+					{/if}
+					<div class="plinks">
+						{#if place.website}<a
+								class="btn sm"
+								href={place.website}
+								target="_blank"
+								rel="noopener noreferrer"><Icon name="globe" size={15} /> {websiteLabel}</a
+							>{/if}
+						{#if telUrl}<a class="btn sm" href={telUrl}
+								><Icon name="phone" size={15} /> {place.phone}</a
+							>{/if}
+						{#if directionsUrl}<a
+								class="btn sm"
+								href={directionsUrl}
+								target="_blank"
+								rel="noopener noreferrer"
+								data-testid="place-directions"><Icon name="route" size={15} /> Directions</a
+							>{/if}
+						{#if geoUrl}<a class="btn sm touch-only" href={geoUrl}
+								><Icon name="pin" size={15} /> Maps app</a
+							>{/if}
+						{#if place.osm_url}<a
+								class="btn ghost sm"
+								href={place.osm_url}
+								target="_blank"
+								rel="noopener noreferrer"
+								>Open in OpenStreetMap <Icon name="external" size={13} /></a
+							>{/if}
+					</div>
+					<p class="attr xs faint">
+						Place data <a href={OSM_ATTRIBUTION.url} target="_blank" rel="noopener noreferrer"
+							>{OSM_ATTRIBUTION.text}</a
+						>, available under the Open Database License.
+					</p>
+				</div>
+				{#if hasCoords && session.config.mapTilesUrl}
+					<PlaceMap
+						lat={place.lat!}
+						lon={place.lon!}
+						template={session.config.mapTilesUrl}
+						href={place.osm_url}
+						label="Map of {entry?.title}"
+					/>
+				{/if}
+			</section>
+		{/if}
 
 		{#if overview || entryFacts.length}
 			<section class="about" aria-label="About">
@@ -417,7 +539,12 @@
 		intro={logIntro?.intro}
 		onclose={() => (logOpen = false)}
 	/>
-	<LinkMatchModal open={linkOpen} {item} onclose={() => (linkOpen = false)} />
+	<LinkMatchModal
+		open={linkOpen}
+		{item}
+		provider={category?.provider ?? 'tmdb'}
+		onclose={() => (linkOpen = false)}
+	/>
 {/if}
 
 <style>
@@ -601,6 +728,63 @@
 		gap: 3px;
 		color: inherit;
 		text-decoration: underline;
+	}
+
+	/* ---- Place: address, facts, links, map ---- */
+	.place {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: var(--s-5);
+		padding-top: var(--s-5);
+		border-top: 1px solid var(--border);
+	}
+	@media (min-width: 900px) {
+		.place {
+			grid-template-columns: minmax(0, 1fr) minmax(0, 400px);
+			align-items: start;
+		}
+	}
+	.pinfo {
+		display: flex;
+		flex-direction: column;
+		gap: var(--s-4);
+		min-width: 0;
+	}
+	.addr {
+		font-family: var(--font-serif);
+		font-size: var(--fs-md);
+		line-height: 1.45;
+		max-width: 46ch;
+	}
+	.hours dd {
+		display: flex;
+		flex-direction: column;
+		font-variant-numeric: tabular-nums;
+	}
+	.place .facts {
+		grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+	}
+	.place .facts .hours {
+		grid-column: 1 / -1;
+	}
+	.plinks {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--s-2);
+	}
+	.plinks .btn {
+		max-width: 100%;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.touch-only {
+		display: none !important;
+	}
+	@media (pointer: coarse) {
+		.touch-only {
+			display: inline-flex !important;
+		}
 	}
 
 	/* ---- Who told you: the "why" as a pull-quote ---- */

@@ -28,8 +28,8 @@ function createAuth() {
 			minPasswordLength: 8,
 			sendResetPassword: env.smtpUrl
 				? async ({ user, url }) => {
-						const { sendMail } = await import('./mail');
-						await sendMail(user.email, 'Reset your password', `Reset your password: ${url}`);
+						const { sendPasswordReset } = await import('./mail');
+						await sendPasswordReset(user.email, url);
 					}
 				: undefined
 		},
