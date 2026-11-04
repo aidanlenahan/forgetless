@@ -44,16 +44,16 @@
 {#snippet star(f: number)}
 	<svg viewBox="0 0 24 24" width={size} height={size} aria-hidden="true">
 		<path
-			class="bg"
+			class="star-bg"
 			d="M12 2.6l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.4l-5.8 3.1 1.1-6.5L2.6 9.4l6.5-.9z"
 		/>
 		{#if f >= 1}
 			<path
-				class="fg"
+				class="star-fg"
 				d="M12 2.6l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.4l-5.8 3.1 1.1-6.5L2.6 9.4l6.5-.9z"
 			/>
 		{:else if f > 0}
-			<path class="fg" d="M12 2.6L9.1 8.5l-6.5.9 4.7 4.6-1.1 6.5L12 17.4z" />
+			<path class="star-fg" d="M12 2.6L9.1 8.5l-6.5.9 4.7 4.6-1.1 6.5L12 17.4z" />
 		{/if}
 	</svg>
 {/snippet}
@@ -63,7 +63,7 @@
 		{#each [1, 2, 3, 4, 5] as i (i)}{@render star(fill(i))}{/each}
 	</span>
 {:else}
-	<span class="wrap">
+	<span class="stars-wrap">
 		<span
 			class="stars"
 			role="slider"
@@ -78,7 +78,7 @@
 		>
 			{#each [1, 2, 3, 4, 5] as i (i)}
 				<span
-					class="hit"
+					class="star-hit"
 					role="presentation"
 					onpointermove={(e) => (hover = valueAt(e, i))}
 					onclick={(e) => {
@@ -91,53 +91,9 @@
 			{/each}
 		</span>
 		{#if value != null}
-			<button type="button" class="clear" onclick={() => set(null)} aria-label="Clear rating"
+			<button type="button" class="stars-clear" onclick={() => set(null)} aria-label="Clear rating"
 				>Clear</button
 			>
 		{/if}
 	</span>
 {/if}
-
-<style>
-	.wrap {
-		display: inline-flex;
-		align-items: center;
-		gap: var(--s-2);
-	}
-	.stars {
-		display: inline-flex;
-		align-items: center;
-		line-height: 0;
-		border-radius: var(--r-sm);
-	}
-	.stars:not(.ro) {
-		cursor: pointer;
-		padding: 2px;
-		touch-action: manipulation;
-	}
-	.hit {
-		display: inline-flex;
-		padding: 1px;
-	}
-	.ro {
-		gap: 0;
-	}
-	.bg {
-		fill: var(--star-empty);
-	}
-	.fg {
-		fill: var(--star);
-	}
-	.clear {
-		border: none;
-		background: none;
-		color: var(--text-3);
-		font: inherit;
-		font-size: var(--fs-xs);
-		cursor: pointer;
-		padding: 2px 4px;
-	}
-	.clear:hover {
-		color: var(--text);
-	}
-</style>

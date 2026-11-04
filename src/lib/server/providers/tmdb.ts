@@ -115,6 +115,11 @@ export function createTmdbProvider(
 			throw new ProviderError(`TMDB request failed: ${(e as Error).message}`, 502);
 		}
 		if (res.status === 404) throw new ProviderError('Not found on TMDB', 404);
+		if (res.status === 429) {
+			const err = new ProviderError('TMDB rate limit hit', 429);
+			err.retryAfter = Number(res.headers.get('retry-after')) || null;
+			throw err;
+		}
 		if (!res.ok) throw new ProviderError(`TMDB responded ${res.status}`, 502);
 		return (await res.json()) as T;
 	}
@@ -131,11 +136,10 @@ export function createTmdbProvider(
 			if (!query) return [];
 			const kind = isKind(opts.kind) ? opts.kind : null;
 			const path = kind ? `/search/${kind}` : '/search/multi';
-			const body = await get<{ results?: TmdbResult[] }>(
-				path,
-				{ query, include_adult: 'false', page: '1' },
-				opts.signal
-			);
+			const params: Record<string, string> = { query, include_adult: 'false', page: '1' };
+			if (opts.year && kind === 'movie') params.year = String(opts.year);
+			if (opts.year && kind === 'tv') params.first_air_date_year = String(opts.year);
+			const body = await get<{ results?: TmdbResult[] }>(path, params, opts.signal);
 			const hits: CatalogHit[] = [];
 			for (const r of body.results ?? []) {
 				const k = kind ?? r.media_type;
@@ -148,6 +152,17 @@ export function createTmdbProvider(
 			const p = parseTmdbId(externalId, kind);
 			const r = await get<TmdbResult>(`/${p.kind}/${p.id}`, {});
 			return mapDetails(r, p.kind);
+		},
+		async findByExternalId(source: 'imdb', id: string) {
+			if (source !== 'imdb' || !/^tt\d{5,10}$/.test(id)) return [];
+			const body = await get<{ movie_results?: TmdbResult[]; tv_results?: TmdbResult[] }>(
+				`/find/${id}`,
+				{ external_source: 'imdb_id' }
+			);
+			return [
+				...(body.movie_results ?? []).map((r) => mapSearchResult(r, 'movie')),
+				...(body.tv_results ?? []).map((r) => mapSearchResult(r, 'tv'))
+			];
 		}
 	};
 }

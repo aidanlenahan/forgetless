@@ -16,10 +16,10 @@
 				: 'Offline'
 			: s.error
 				? s.pending
-					? `${s.pending} pending · retrying`
-					: 'Sync error · retrying'
+					? `${s.pending} pending, retrying`
+					: 'Sync failed, retrying'
 				: s.syncing
-					? 'Syncing…'
+					? 'Syncing'
 					: s.pending
 						? `${s.pending} pending`
 						: 'Synced'
@@ -44,21 +44,29 @@
 		display: inline-flex;
 		align-items: center;
 		gap: var(--s-2);
+		min-height: 32px;
 		border: none;
 		background: transparent;
-		color: var(--text-3);
+		color: var(--text-2);
 		font: inherit;
 		font-size: var(--fs-xs);
-		padding: var(--s-1) var(--s-2);
+		font-weight: 500;
+		padding: 0 var(--s-2);
 		border-radius: var(--r-pill);
 		cursor: pointer;
+		transition:
+			background-color var(--dur-1) ease,
+			color var(--dur-1) ease;
 	}
 	.sync:hover {
 		background: var(--surface-2);
-		color: var(--text-2);
+		color: var(--text);
 	}
 	.compact {
-		padding: var(--s-2);
+		min-width: 44px;
+		min-height: 44px;
+		justify-content: center;
+		padding: 0;
 	}
 	.dot {
 		width: 8px;
@@ -66,20 +74,22 @@
 		border-radius: 50%;
 		background: var(--ok);
 		flex: none;
+		transition: background-color var(--dur-2) ease;
 	}
 	.syncing .dot {
-		background: var(--accent);
-		animation: pulse 1.2s ease-in-out infinite;
+		background: var(--star);
+		animation: pulse 1.1s ease-in-out infinite;
 	}
 	.offline .dot {
-		background: var(--text-3);
+		background: transparent;
+		box-shadow: inset 0 0 0 1.5px var(--text-3);
 	}
 	.error .dot {
 		background: var(--warn);
 	}
 	.offline .text,
 	.error .text {
-		color: var(--text-2);
+		color: var(--text);
 	}
 	@keyframes pulse {
 		50% {

@@ -4,8 +4,10 @@ import { svelteKitHandler } from 'better-auth/svelte-kit';
 import { getAuth } from '#lib/server/auth.ts';
 import { env } from '#lib/server/env.ts';
 import { purgeExpiredGuests } from '#lib/server/demo.ts';
+import { startScheduler } from '#lib/server/notify/scheduler.ts';
 
-/** Runs once before the first request: purge expired guest accounts, then hourly while running. */
+/** Runs once before the first request: purge expired guest accounts (then hourly) and start the
+ * notification scheduler. */
 export const init: ServerInit = () => {
 	if (building) return;
 	const purge = () => {
@@ -21,6 +23,8 @@ export const init: ServerInit = () => {
 	if (g.__appPurgeTimer) clearInterval(g.__appPurgeTimer); // dev HMR re-runs init
 	g.__appPurgeTimer = setInterval(purge, 60 * 60 * 1000);
 	g.__appPurgeTimer.unref?.();
+	// Digests and resurface reminders (in-process, every APP_NOTIFY_TICK_MS; single instance only).
+	startScheduler();
 };
 
 export const handle: Handle = async ({ event, resolve }) => {

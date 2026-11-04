@@ -38,14 +38,14 @@
 			});
 			onclose();
 		} catch (err) {
-			toast(`Could not save: ${err instanceof Error ? err.message : err}`, { kind: 'error' });
+			toast(`Couldn't save: ${err instanceof Error ? err.message : err}`, { kind: 'error' });
 		}
 	}
 </script>
 
 <Modal
 	{open}
-	title={title ?? (entry ? 'Edit log entry' : 'Log it')}
+	title={title ?? (entry ? 'Edit entry' : 'Log it')}
 	size="sm"
 	{onclose}
 	testid="log-modal"

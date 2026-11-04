@@ -1,13 +1,12 @@
 # Zero-config: `docker compose up --build`, then open http://localhost:3000.
 # Put overrides (TMDB_API_KEY, APP_AUTH_SECRET, OAuth, SMTP...) in a .env file next to this one; see .env.example.
+# Emails land in the bundled Mailpit inbox (http://localhost:8025) until you set SMTP_URL.
 services:
   app:
-    build:
-      context: .
-      args:
-        # Baked into the build (SvelteKit 3 has no runtime ORIGIN); must match APP_ORIGIN below.
-        APP_ORIGIN: ${APP_ORIGIN:-http://localhost:3000}
-    image: forgetless:local
+    # Builds from this checkout by default. To run the published image instead, set e.g.
+    # APP_IMAGE=docker.io/<you>/forgetless:latest in .env and run `docker compose pull && docker compose up -d`.
+    image: ${APP_IMAGE:-forgetless:local}
+    build: .
     restart: unless-stopped
     ports:
       - '3000:3000'
@@ -25,3 +24,14 @@ services:
       APP_DEMO_ENABLED: ${APP_DEMO_ENABLED:-true}
       APP_ALLOW_SIGNUP: ${APP_ALLOW_SIGNUP:-true}
       APP_DB_PATH: /data/app.db
+      # Email (password resets, digests). Without SMTP_URL in .env, mail goes to the local Mailpit inbox
+      # below (http://localhost:8025). Set SMTP_URL in .env to send real email.
+      SMTP_URL: ${SMTP_URL:-smtp://mailpit:1025}
+
+  # Local test inbox: catches every email the app sends. Web UI on http://localhost:8025.
+  # Unused once SMTP_URL points at a real server (you can then remove this service).
+  mailpit:
+    image: axllent/mailpit
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:8025:8025'

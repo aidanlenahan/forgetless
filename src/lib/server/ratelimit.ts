@@ -56,9 +56,21 @@ const makeLimits = () => ({
 	providerSelectUser: new TokenBucket(60, MIN),
 	syncWriteUser: new TokenBucket(120, MIN),
 	importUser: new TokenBucket(10, HOUR),
-	demoIp: new TokenBucket(10, HOUR)
+	/** app imports (Letterboxd/IMDb/Goodreads): previews and commits */
+	appImportUser: new TokenBucket(30, HOUR),
+	/** catalog previews / creates / deletes */
+	catalogWriteUser: new TokenBucket(30, HOUR),
+	catalogSearchUser: new TokenBucket(240, MIN),
+	demoIp: new TokenBucket(10, HOUR),
+	/** notification settings reads/writes, previews, push (un)subscribe */
+	notifyUser: new TokenBucket(60, MIN),
+	/** "Send test" (real emails / pushes) */
+	notifyTestUser: new TokenBucket(5, HOUR),
+	/** /a/<token> action links (no session, so keyed by IP) */
+	notifyActionIp: new TokenBucket(30, MIN)
 });
-export const limits = (g.__appLimits ??= makeLimits());
+// Merge so buckets added later still appear after a dev hot reload kept the old object.
+export const limits = (g.__appLimits = { ...makeLimits(), ...g.__appLimits });
 
 export function clientIp(event: Pick<RequestEvent, 'getClientAddress'>): string {
 	try {

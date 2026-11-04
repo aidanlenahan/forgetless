@@ -19,7 +19,7 @@ export const DEFAULT_CATEGORIES: {
 	{
 		name: 'Eat',
 		icon: '🍜',
-		provider: null,
+		provider: 'osm',
 		fieldSchema: [
 			{ key: 'neighborhood', label: 'Neighborhood', type: 'text' },
 			{ key: 'price', label: 'Price', type: 'select', options: ['$', '$$', '$$$', '$$$$'] }
@@ -28,10 +28,10 @@ export const DEFAULT_CATEGORIES: {
 	{
 		name: 'Visit',
 		icon: '📍',
-		provider: null,
+		provider: 'osm',
 		fieldSchema: [{ key: 'location', label: 'Location', type: 'text' }]
 	},
-	{ name: 'Drink', icon: '🍸', provider: null, fieldSchema: [] },
+	{ name: 'Drink', icon: '🍸', provider: 'osm', fieldSchema: [] },
 	{
 		name: 'Cook',
 		icon: '🍳',

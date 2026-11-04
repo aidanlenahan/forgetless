@@ -13,6 +13,7 @@ import {
 	csvField,
 	ImportError
 } from '../../src/lib/server/export';
+import { createCatalog, searchCatalogs } from '../../src/lib/server/catalogs';
 import type { DB } from '../../src/lib/server/db';
 import type { ExportFile } from '../../src/lib/shared/types';
 import { makeDb, addUser, cat, item, log } from './helpers';
@@ -135,6 +136,60 @@ describe('export → wipe → import round-trip', () => {
 		expect(after.catalogEntries).toEqual(
 			before.catalogEntries.map((c) => ({ ...c, fetchedAt: 0 }))
 		);
+	});
+
+	it('round-trips items linked to a user catalog entry', () => {
+		const s = seed();
+		const { catalog } = createCatalog(
+			u,
+			{
+				categoryId: s.eat.id,
+				name: 'NYC pizza',
+				mapping: {
+					title: 'Name',
+					subtitle: 'Area',
+					fields: [{ column: 'Price', key: 'price', label: 'Price' }]
+				},
+				table: {
+					headers: ['Name', 'Area', 'Price'],
+					rows: [
+						{ Name: "L'industrie", Area: 'Williamsburg', Price: '$' },
+						{ Name: 'Scarr’s', Area: 'LES', Price: '$' }
+					]
+				}
+			},
+			db
+		);
+		const [entry] = searchCatalogs(u, s.eat.id, 'industrie', 10, db);
+		expect(entry).toMatchObject({ source: `catalog:${catalog.id}`, subtitle: 'Williamsburg' });
+		const c = item(s.eat.id, {
+			title: entry.title,
+			catalogEntryId: entry.id,
+			customFields: { price: '$' }
+		});
+		applyMutations(u, [{ kind: 'item', row: c }], db);
+
+		const before = buildExport(u, db);
+		expect(before.catalogEntries.map((e) => e.id)).toContain(entry.id);
+		const json = JSON.parse(JSON.stringify(before));
+		wipeUserData(u, db);
+		importExport(u, json, 'replace', db);
+		expect(strip(buildExport(u, db))).toEqual(strip(before));
+
+		// Into a fresh instance (no catalogs row there): the entry comes along with the item.
+		const db2 = makeDb();
+		addUser(db2, u);
+		importExport(u, json, 'replace', db2);
+		const after = buildExport(u, db2);
+		expect(after.items.find((i) => i.id === c.id)?.catalogEntryId).toBe(entry.id);
+		expect(after.catalogEntries.find((e) => e.id === entry.id)?.title).toBe("L'industrie");
+
+		// Another user importing this file must not get linked to the owner's private entry.
+		const v = addUser(db);
+		importExport(v, json, 'merge', db);
+		const theirs = buildExport(v, db);
+		expect(theirs.items.find((i) => i.title === "L'industrie")?.catalogEntryId).toBeNull();
+		expect(theirs.catalogEntries.some((e) => e.source.startsWith('catalog:'))).toBe(false);
 	});
 
 	it('replace removes rows not in the file', () => {

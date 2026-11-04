@@ -2,6 +2,7 @@
 	// One custom field input rendered from a category's fieldSchema entry. Saves on change.
 	import type { FieldDef } from '#lib/shared/types.ts';
 	import { isUrl } from '#lib/client/format.ts';
+	import Icon from './Icon.svelte';
 
 	interface Props {
 		def: FieldDef;
@@ -53,7 +54,7 @@
 					href={str}
 					target="_blank"
 					rel="noopener noreferrer"
-					aria-label="Open {def.label}">↗</a
+					aria-label="Open {def.label}"><Icon name="external" size={16} /></a
 				>{/if}
 		</div>
 	{:else if def.type === 'select'}

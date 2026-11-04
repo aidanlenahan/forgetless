@@ -17,18 +17,23 @@
 		"test": "vitest run",
 		"test:unit": "vitest run",
 		"admin": "node --experimental-strip-types --no-warnings scripts/admin.ts",
-		"start": "node build",
+		"start": "node server.js",
 		"lint": "prettier --check . && eslint .",
 		"format": "prettier --write .",
-		"test:e2e": "playwright test"
+		"test:e2e": "playwright test",
+		"fonts": "node scripts/copy-fonts.mjs"
 	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
+		"@fontsource-variable/instrument-sans": "^5.3.0",
+		"@fontsource-variable/newsreader": "^5.3.0",
 		"@playwright/test": "^1.64.1",
 		"@sveltejs/adapter-node": "^6.0.1",
 		"@sveltejs/kit": "^3.0.0",
 		"@sveltejs/vite-plugin-svelte": "^7.2.0",
 		"@types/better-sqlite3": "^9.6.0",
+		"@types/nodemailer": "^8.0.2",
+		"@types/web-push": "^3.6.4",
 		"@vite-pwa/sveltekit": "^2.0.0",
 		"drizzle-kit": "^0.31.11",
 		"eslint": "^10.14.0",
@@ -38,6 +43,7 @@
 		"magicast": "^0.5.5",
 		"prettier": "^3.9.10",
 		"prettier-plugin-svelte": "^4.1.1",
+		"subset-font": "^2.9.0",
 		"svelte": "^5.57.2",
 		"svelte-check": "^4.6.0",
 		"typescript": "^6.0.3",
@@ -55,6 +61,9 @@
 		"better-sqlite3": "^13.0.3",
 		"dexie": "^4.4.7",
 		"drizzle-orm": "^0.45.4",
-		"uuidv7": "^1.2.1"
+		"fflate": "^0.8.3",
+		"nodemailer": "^10.3.1",
+		"uuidv7": "^1.2.1",
+		"web-push": "^3.6.7"
 	}
 }

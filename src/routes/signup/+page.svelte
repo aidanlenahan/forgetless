@@ -10,7 +10,7 @@
 	<main class="closed">
 		<div class="card pad stack">
 			<h1>Sign-ups are closed</h1>
-			<p class="muted">This instance isn't accepting new accounts.</p>
+			<p class="muted">This server isn't taking new accounts.</p>
 			<a class="btn primary" href="/login">Back to sign in</a>
 		</div>
 	</main>

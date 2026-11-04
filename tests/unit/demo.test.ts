@@ -70,9 +70,22 @@ describe('seedDemoData', () => {
 		).toBe(6);
 		expect(p.logEntries.length).toBeGreaterThan(8);
 		expect(p.catalogEntries.length).toBeGreaterThanOrEqual(4);
-		expect(p.catalogEntries.every((c) => c.imageUrl?.startsWith('https://image.tmdb.org/'))).toBe(
-			true
+		const tmdb = p.catalogEntries.filter((c) => c.source === 'tmdb');
+		expect(tmdb.every((c) => c.imageUrl?.startsWith('https://image.tmdb.org/'))).toBe(true);
+		// Eat / Visit / Drink use the places provider; a few demo places carry real OSM entries.
+		expect(
+			p.categories
+				.filter((c) => c.provider === 'osm')
+				.map((c) => c.name)
+				.sort()
+		).toEqual(['Drink', 'Eat', 'Visit']);
+		const osm = p.catalogEntries.filter((c) => c.source === 'osm');
+		expect(osm.length).toBeGreaterThanOrEqual(3);
+		const katz = osm.find((c) => c.externalId === 'node:1915398676');
+		expect(katz?.data.formatted_address).toBe(
+			'205 East Houston Street, Manhattan, New York 10002, United States'
 		);
+		expect(katz?.subtitle).toBe('Deli · Manhattan, New York');
 		const oldest = Math.min(...p.items.map((i) => i.createdAt));
 		expect(Date.now() - oldest).toBeGreaterThan(200 * 86_400_000);
 		expect(

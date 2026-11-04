@@ -6,6 +6,7 @@ import { env } from './env';
 import { applyMutations, upsertCatalogEntries } from './repo';
 import { seedDefaultCategories } from './seed';
 import { purgeExpiredGuestsSql } from './purge';
+import { mapPlaceDetails, type PlaceFacts } from './providers/places';
 import type { Item, LogEntry, Mutation, Status } from '../shared/types';
 
 export function purgeExpiredGuests(db: DB = getDb(), now = Date.now()): number {
@@ -163,8 +164,99 @@ interface DemoItem {
 	tags?: string[];
 	fields?: Record<string, unknown>;
 	tmdb?: string; // externalId in DEMO_CATALOG
+	place?: string; // externalId in DEMO_PLACES
 	logs?: DemoLog[];
 }
+
+/**
+ * Real OpenStreetMap elements (ids, coordinates and tags checked against Photon / Nominatim in Nov 2026),
+ * hardcoded so the demo's places have an address and a map without calling the public servers.
+ */
+export const DEMO_PLACES: PlaceFacts[] = [
+	{
+		osmType: 'node',
+		osmId: '4196029141',
+		name: 'Lucali',
+		key: 'amenity',
+		value: 'restaurant',
+		lat: 40.6818319,
+		lon: -74.0003712,
+		address: {
+			housenumber: '575',
+			street: 'Henry Street',
+			locality: 'Columbia Street Waterfront District',
+			district: 'Brooklyn',
+			city: 'New York',
+			state: 'New York',
+			country: 'United States',
+			countrycode: 'US'
+		},
+		tags: {}
+	},
+	{
+		osmType: 'node',
+		osmId: '1915398676',
+		name: 'Katz’s Delicatessen',
+		key: 'amenity',
+		value: 'restaurant',
+		lat: 40.7223431,
+		lon: -73.987353,
+		address: {
+			housenumber: '205',
+			street: 'East Houston Street',
+			locality: 'Manhattan Community Board 3',
+			district: 'Manhattan',
+			city: 'New York',
+			state: 'New York',
+			postcode: '10002',
+			country: 'United States',
+			countrycode: 'US'
+		},
+		tags: {
+			cuisine: 'deli',
+			website: 'https://www.katzsdelicatessen.com',
+			phone: '+1-212-254-2246',
+			opening_hours: 'Mo-Th 08:00-22:15; Fr 08:00-24:00; Sa 00:00-24:00; Su 00:00-22:15'
+		}
+	},
+	{
+		osmType: 'way',
+		osmId: '833335529',
+		name: 'Little Island',
+		key: 'leisure',
+		value: 'park',
+		lat: 40.7420041,
+		lon: -74.0106105,
+		address: {
+			district: 'Manhattan',
+			city: 'New York',
+			state: 'New York',
+			country: 'United States',
+			countrycode: 'US'
+		},
+		tags: {}
+	},
+	{
+		osmType: 'relation',
+		osmId: '3698894',
+		name: 'The Metropolitan Museum of Art',
+		key: 'tourism',
+		value: 'museum',
+		lat: 40.7794396,
+		lon: -73.9633825,
+		address: {
+			housenumber: '1000',
+			street: '5th Avenue',
+			locality: 'Upper East Side',
+			district: 'Manhattan',
+			city: 'New York',
+			state: 'New York',
+			country: 'United States',
+			countrycode: 'US'
+		},
+		tags: {}
+	}
+];
 
 export const DEMO_ITEMS: DemoItem[] = [
 	{
@@ -274,6 +366,7 @@ export const DEMO_ITEMS: DemoItem[] = [
 	{
 		cat: 'Eat',
 		title: 'Lucali',
+		place: 'node:4196029141',
 		daysAgo: 200,
 		status: 'done',
 		by: 'Priya',
@@ -327,11 +420,34 @@ export const DEMO_ITEMS: DemoItem[] = [
 	{
 		cat: 'Visit',
 		title: 'Little Island',
+		place: 'way:833335529',
 		daysAgo: 100,
 		status: 'want',
 		by: 'Sam',
 		fields: { location: 'Hudson River Park' },
 		tags: ['outdoors']
+	},
+	{
+		cat: 'Eat',
+		title: 'Katz’s Delicatessen',
+		place: 'node:1915398676',
+		daysAgo: 20,
+		status: 'want',
+		by: 'Sam',
+		why: 'Pastrami on rye. Keep your ticket.',
+		fields: { neighborhood: 'Lower East Side', price: '$$' },
+		tags: ['deli', 'classic']
+	},
+	{
+		cat: 'Visit',
+		title: 'The Met',
+		place: 'relation:3698894',
+		daysAgo: 70,
+		status: 'want',
+		by: 'Mom',
+		why: 'The rooftop garden in summer, then the Temple of Dendur.',
+		fields: { location: 'Upper East Side' },
+		tags: ['museum', 'rainy day']
 	},
 	{
 		cat: 'Visit',
@@ -423,6 +539,11 @@ export function seedDemoData(userId: string, db: DB = getDb(), now = Date.now())
 		db
 	);
 	const catalogId = new Map(catalog.map((c) => [c.externalId, c.id]));
+	const places = upsertCatalogEntries(
+		DEMO_PLACES.map((f) => mapPlaceDetails(f, now)),
+		db
+	);
+	const placeId = new Map(places.map((c) => [c.externalId, c.id]));
 
 	const mutations: Mutation[] = [];
 	for (const d of DEMO_ITEMS) {
@@ -434,7 +555,11 @@ export function seedDemoData(userId: string, db: DB = getDb(), now = Date.now())
 		const item: Item = {
 			id: idAt(createdAt),
 			categoryId,
-			catalogEntryId: d.tmdb ? (catalogId.get(d.tmdb) ?? null) : null,
+			catalogEntryId: d.tmdb
+				? (catalogId.get(d.tmdb) ?? null)
+				: d.place
+					? (placeId.get(d.place) ?? null)
+					: null,
 			title: d.title,
 			status: d.status ?? 'want',
 			recommendedBy: d.by ?? null,

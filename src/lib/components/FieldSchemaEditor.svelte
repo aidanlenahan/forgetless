@@ -2,6 +2,7 @@
 	// Edit a category's custom field schema: add/remove fields with key, label, type and select options.
 	import type { FieldDef, FieldType } from '#lib/shared/types.ts';
 	import { slugKey } from '#lib/client/format.ts';
+	import Icon from './Icon.svelte';
 
 	interface Props {
 		fields: FieldDef[];
@@ -83,20 +84,20 @@
 								class="btn ghost icon sm"
 								onclick={() => moveField(i, -1)}
 								disabled={i === 0}
-								aria-label="Move {f.label} up">↑</button
+								aria-label="Move {f.label} up"><Icon name="arrowUp" size={15} /></button
 							>
 							<button
 								type="button"
 								class="btn ghost icon sm"
 								onclick={() => moveField(i, 1)}
 								disabled={i === fields.length - 1}
-								aria-label="Move {f.label} down">↓</button
+								aria-label="Move {f.label} down"><Icon name="arrowDown" size={15} /></button
 							>
 							<button
 								type="button"
 								class="btn ghost icon sm danger"
 								onclick={() => remove(i)}
-								aria-label="Remove field {f.label}">✕</button
+								aria-label="Remove field {f.label}"><Icon name="close" size={15} /></button
 							>
 						</div>
 					</div>
@@ -141,7 +142,7 @@
 		</ul>
 	{:else}
 		<p class="small faint">
-			No custom fields. Add some, e.g. “Neighborhood”, “Price” (select), “Author”.
+			No custom fields yet. Try “Neighborhood”, “Price” as a select, or “Author”.
 		</p>
 	{/if}
 	<form class="frow add" onsubmit={add}>

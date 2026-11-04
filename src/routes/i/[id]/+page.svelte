@@ -6,13 +6,23 @@
 	import { saveItem, deleteItem, deleteLogEntry } from '#lib/client/mutations.ts';
 	import { distinctValues, parseTags } from '#lib/client/queries.ts';
 	import { timeAgo, formatDay, isUrl, ratingLabel } from '#lib/client/format.ts';
-	import { entryMeta } from '#lib/client/provider.ts';
+	import {
+		entryMeta,
+		providerEnabled,
+		PROVIDER_SHORT,
+		OSM_ATTRIBUTION
+	} from '#lib/client/provider.ts';
+	import { placeData, openingHoursLines } from '#lib/shared/places.ts';
+	import PlaceMap from '#lib/components/PlaceMap.svelte';
 	import { confirmDialog, toast } from '#lib/client/ui.svelte.ts';
 	import Poster from '#lib/components/Poster.svelte';
 	import StarRating from '#lib/components/StarRating.svelte';
 	import LogEntryModal from '#lib/components/LogEntryModal.svelte';
 	import LinkMatchModal from '#lib/components/LinkMatchModal.svelte';
 	import CustomField from '#lib/components/CustomField.svelte';
+	import Icon from '#lib/components/Icon.svelte';
+	import { snoozes, refreshSnoozes } from '#lib/client/snoozes.svelte.ts';
+	import { tintStyle } from '#lib/client/visual.ts';
 	import {
 		STATUSES,
 		STATUS_LABELS,
@@ -26,16 +36,42 @@
 	const category = $derived(item ? store.categoryById.get(item.categoryId) : undefined);
 	const entry = $derived(item?.catalogEntryId ? store.catalog.get(item.catalogEntryId) : undefined);
 	const logs = $derived(store.logsByItem.get(id) ?? []);
+	const snoozedUntil = $derived.by(() => {
+		const u = snoozes.byItem[id];
+		return u && u > Date.now() ? u : null;
+	});
+	void refreshSnoozes();
 	const latest = $derived(logs.find((l) => l.rating != null)?.rating ?? null);
 	const recommenders = $derived(distinctValues(store.items.map((i) => i.recommendedBy)));
 	const allTags = $derived(distinctValues(store.items.flatMap((i) => i.tags)));
 	const canMatch = $derived(
 		!!item &&
-			category?.provider === 'tmdb' &&
-			session.config.providers.tmdb &&
+			providerEnabled(session.config, category?.provider) &&
 			(!item.catalogEntryId || item.needsMatch)
 	);
 	const isTmdb = $derived(entry?.source === 'tmdb');
+	const matchOsm = $derived(category?.provider === 'osm');
+	const isPlace = $derived(entry?.source === 'osm');
+	const place = $derived(isPlace ? placeData(entry?.data) : null);
+	const hours = $derived(openingHoursLines(place?.opening_hours ?? null));
+	const hasCoords = $derived(place?.lat != null && place?.lon != null);
+	const directionsUrl = $derived(
+		hasCoords ? `https://www.openstreetmap.org/directions?to=${place!.lat}%2C${place!.lon}` : null
+	);
+	const geoUrl = $derived(
+		hasCoords
+			? `geo:${place!.lat},${place!.lon}?q=${place!.lat},${place!.lon}(${encodeURIComponent(entry?.title ?? '')})`
+			: null
+	);
+	const telUrl = $derived(place?.phone ? `tel:${place.phone.replace(/[^\d+]/g, '')}` : null);
+	const websiteLabel = $derived.by(() => {
+		if (!place?.website) return null;
+		try {
+			return new URL(place.website).hostname.replace(/^www\./, '');
+		} catch {
+			return place.website;
+		}
+	});
 
 	let logOpen = $state(false);
 	let logEditing = $state<LogEntry | null>(null);
@@ -55,8 +91,8 @@
 		if (s === 'done' && was !== 'done') {
 			logEditing = null;
 			logIntro = {
-				title: 'Marked as done 🎉',
-				intro: 'Want to log it? Add a date, rating or note — or skip.'
+				title: 'Marked as done',
+				intro: 'Log it while it’s fresh: the date, a rating, a line about it. Or skip.'
 			};
 			logOpen = true;
 		}
@@ -75,7 +111,7 @@
 		if (
 			await confirmDialog({
 				title: 'Delete this log entry?',
-				message: `${formatDay(l.date)}${l.note ? ` — “${l.note}”` : ''}`,
+				message: `${formatDay(l.date)}${l.note ? `: “${l.note}”` : ''}`,
 				confirmLabel: 'Delete',
 				danger: true
 			})
@@ -86,7 +122,7 @@
 		if (!item) return;
 		const ok = await confirmDialog({
 			title: `Delete “${item.title}”?`,
-			message: 'Its log entries go with it. This syncs to all your devices.',
+			message: 'Its log entries go with it, on every device you use.',
 			confirmLabel: 'Delete',
 			danger: true
 		});
@@ -145,7 +181,10 @@
 	const entryFacts = $derived(facts(entry?.data));
 	const tmdbUrl = $derived(
 		entry && isTmdb
-			? `https://www.themoviedb.org/${entry.kind === 'tv' ? 'tv' : 'movie'}/${entry.externalId}`
+			? typeof entry.data?.tmdb_url === 'string'
+				? (entry.data.tmdb_url as string)
+				: // externalId is "movie:550" / "tv:95396"
+					`https://www.themoviedb.org/${entry.kind === 'tv' ? 'tv' : 'movie'}/${entry.externalId.split(':').pop()}`
 			: null
 	);
 </script>
@@ -153,31 +192,33 @@
 <svelte:head><title>{item?.title ?? 'Item'} · Forgetless</title></svelte:head>
 
 {#if !store.ready}
-	<div class="loading"><span class="spinner"></span></div>
+	<div class="loading" aria-busy="true" aria-label="Loading"><span class="spinner"></span></div>
 {:else if !item}
 	<div class="notfound card pad stack">
 		<h1>Item not found</h1>
-		<p class="muted">It may have been deleted, or it hasn't synced to this device yet.</p>
+		<p class="muted">You may have deleted it, or it hasn't synced to this device yet.</p>
 		<a class="btn" href="/">Back to All</a>
 	</div>
 {:else}
-	<article class="detail">
-		<nav class="crumbs small">
-			<a href="/c/{item.categoryId}">← {category?.icon} {category?.name}</a>
+	<article class="detail" style={tintStyle(category)}>
+		<nav class="crumbs" aria-label="Breadcrumb">
+			<a href="/c/{item.categoryId}"
+				><Icon name="back" size={16} /><span aria-hidden="true">{category?.icon}</span>
+				{category?.name}</a
+			>
 		</nav>
 
-		<header class="hero">
-			{#if entry?.imageUrl}
+		<header class="hero" class:has-poster={!!entry?.imageUrl}>
+			<div class="art">
 				<Poster
-					src={entry.imageUrl}
-					alt="Poster for {entry.title}"
+					src={entry?.imageUrl}
+					alt={entry?.imageUrl ? `Poster for ${entry.title}` : ''}
 					icon={category?.icon}
-					width={128}
-					radius="var(--r)"
+					title={item.title}
+					width={176}
+					eager
 				/>
-			{:else}
-				<Poster icon={category?.icon} width={72} ratio={1} radius="var(--r-lg)" />
-			{/if}
+			</div>
 			<div class="hmain">
 				<label class="sr-only" for="title-input">Title</label>
 				<input
@@ -191,11 +232,19 @@
 					}}
 					data-testid="item-title"
 				/>
-				<div class="meta small muted">
-					{#if entry && entryMeta(entry)}{entryMeta(entry)} ·
-					{/if}
-					Added {timeAgo(item.createdAt)}
-				</div>
+				<p class="meta">
+					{#if entry && entryMeta(entry)}<span>{entryMeta(entry)}</span>{/if}
+					<span>Saved {timeAgo(item.createdAt)}</span>
+					{#if snoozedUntil}<small
+							class="pill"
+							title="Left out of digests and reminders until then"
+							data-testid="snoozed-pill"
+							>Snoozed until {new Date(snoozedUntil).toLocaleDateString(undefined, {
+								month: 'short',
+								day: 'numeric'
+							})}</small
+						>{/if}
+				</p>
 				{#if tagline}<p class="tagline">{tagline}</p>{/if}
 				<div class="controls">
 					<label class="sr-only" for="status-select">Status</label>
@@ -209,14 +258,21 @@
 						{#each STATUSES as s (s)}<option value={s}>{STATUS_LABELS[s]}</option>{/each}
 					</select>
 					{#if latest != null}
-						<span class="row" title={ratingLabel(latest)}
+						<span class="row rating" title={ratingLabel(latest)}
 							><StarRating value={latest} readonly size={18} /></span
 						>
 					{/if}
 				</div>
 				{#if item.needsMatch}
 					<p class="needs small">
-						Saved offline as custom — link it to its TMDB entry for poster & details.
+						{#if matchOsm}
+							You saved this offline as a custom item. Link it to a place to get the address and
+							map.
+						{:else}
+							You saved this offline as a custom item. Link it to {PROVIDER_SHORT[
+								category?.provider ?? 'tmdb'
+							] ?? 'TMDB'} to get the poster and details.
+						{/if}
 					</p>
 				{/if}
 				{#if canMatch}
@@ -224,14 +280,86 @@
 						type="button"
 						class="btn sm"
 						onclick={() => (linkOpen = true)}
-						data-testid="link-match">🔗 Link to TMDB match</button
+						data-testid="link-match"
+						><Icon name={matchOsm ? 'pin' : 'link'} size={15} />
+						{matchOsm ? 'Link to a place' : 'Link to TMDB'}</button
 					>
 				{/if}
 			</div>
 		</header>
 
+		{#if isPlace && place}
+			<section class="place" aria-label="Place" data-testid="place-info">
+				<div class="pinfo">
+					{#if place.formatted_address}
+						<p class="addr" data-testid="place-address">{place.formatted_address}</p>
+					{/if}
+					{#if place.cuisine || place.type_label || hours.length}
+						<dl class="facts">
+							{#if place.type_label}<div>
+									<dt>Type</dt>
+									<dd>{place.type_label}</dd>
+								</div>{/if}
+							{#if place.cuisine}<div>
+									<dt>Cuisine</dt>
+									<dd>{place.cuisine}</dd>
+								</div>{/if}
+							{#if hours.length}<div class="hours">
+									<dt>Hours</dt>
+									<dd>
+										{#each hours as h (h)}<span>{h}</span>{/each}
+									</dd>
+								</div>{/if}
+						</dl>
+					{/if}
+					<div class="plinks">
+						{#if place.website}<a
+								class="btn sm"
+								href={place.website}
+								target="_blank"
+								rel="noopener noreferrer"><Icon name="globe" size={15} /> {websiteLabel}</a
+							>{/if}
+						{#if telUrl}<a class="btn sm" href={telUrl}
+								><Icon name="phone" size={15} /> {place.phone}</a
+							>{/if}
+						{#if directionsUrl}<a
+								class="btn sm"
+								href={directionsUrl}
+								target="_blank"
+								rel="noopener noreferrer"
+								data-testid="place-directions"><Icon name="route" size={15} /> Directions</a
+							>{/if}
+						{#if geoUrl}<a class="btn sm touch-only" href={geoUrl}
+								><Icon name="pin" size={15} /> Maps app</a
+							>{/if}
+						{#if place.osm_url}<a
+								class="btn ghost sm"
+								href={place.osm_url}
+								target="_blank"
+								rel="noopener noreferrer"
+								>Open in OpenStreetMap <Icon name="external" size={13} /></a
+							>{/if}
+					</div>
+					<p class="attr xs faint">
+						Place data <a href={OSM_ATTRIBUTION.url} target="_blank" rel="noopener noreferrer"
+							>{OSM_ATTRIBUTION.text}</a
+						>, available under the Open Database License.
+					</p>
+				</div>
+				{#if hasCoords && session.config.mapTilesUrl}
+					<PlaceMap
+						lat={place.lat!}
+						lon={place.lon!}
+						template={session.config.mapTilesUrl}
+						href={place.osm_url}
+						label="Map of {entry?.title}"
+					/>
+				{/if}
+			</section>
+		{/if}
+
 		{#if overview || entryFacts.length}
-			<section class="card pad stack">
+			<section class="about" aria-label="About">
 				{#if overview}<p class="overview">{overview}</p>{/if}
 				{#if entryFacts.length}
 					<dl class="facts">
@@ -244,7 +372,8 @@
 				{#if isTmdb}
 					<p class="attr xs faint">
 						This product uses the TMDB API but is not endorsed or certified by TMDB.
-						{#if tmdbUrl}<a href={tmdbUrl} target="_blank" rel="noopener noreferrer">View on TMDB</a
+						{#if tmdbUrl}<a href={tmdbUrl} target="_blank" rel="noopener noreferrer"
+								>View on TMDB <Icon name="external" size={12} /></a
 							>{/if}
 					</p>
 				{/if}
@@ -255,9 +384,20 @@
 			</p>
 		{/if}
 
-		<section class="card pad">
-			<h2 class="section-title">Context</h2>
-			<div class="grid">
+		<section class="context" aria-labelledby="ctx-h">
+			<h2 id="ctx-h" class="section-title">Who told you</h2>
+			<div class="quote">
+				<span class="qmark" aria-hidden="true">“</span>
+				<label class="sr-only" for="f-why">Why</label>
+				<textarea
+					id="f-why"
+					class="why"
+					rows="2"
+					value={item.why ?? ''}
+					placeholder="What made you want to try it?"
+					onchange={(e) => update({ why: text(e.currentTarget.value) })}></textarea>
+			</div>
+			<div class="byline">
 				<div class="field">
 					<label for="f-by">Recommended by</label>
 					<input
@@ -265,6 +405,7 @@
 						class="input"
 						list="by-list"
 						value={item.recommendedBy ?? ''}
+						placeholder="Who mentioned it"
 						onchange={(e) => update({ recommendedBy: text(e.currentTarget.value) })}
 						autocomplete="off"
 					/>
@@ -279,6 +420,7 @@
 							id="f-src"
 							class="input"
 							value={item.source ?? ''}
+							placeholder="Podcast, link, a walk past"
 							onchange={(e) => update({ source: text(e.currentTarget.value) })}
 							autocomplete="off"
 						/>
@@ -287,18 +429,9 @@
 								href={item.source}
 								target="_blank"
 								rel="noopener noreferrer"
-								aria-label="Open source link">↗</a
+								aria-label="Open source link"><Icon name="external" size={16} /></a
 							>{/if}
 					</div>
-				</div>
-				<div class="field full">
-					<label for="f-why">Why</label>
-					<textarea
-						id="f-why"
-						class="textarea"
-						rows="2"
-						value={item.why ?? ''}
-						onchange={(e) => update({ why: text(e.currentTarget.value) })}></textarea>
 				</div>
 				<div class="field full">
 					<label for="f-tags">Tags</label>
@@ -307,7 +440,7 @@
 						class="input"
 						list="tag-list"
 						value={item.tags.join(', ')}
-						placeholder="comma, separated"
+						placeholder="Separate with commas"
 						onchange={(e) => update({ tags: parseTags(e.currentTarget.value) })}
 						autocomplete="off"
 					/>
@@ -320,8 +453,8 @@
 		</section>
 
 		{#if category?.fieldSchema.length}
-			<section class="card pad">
-				<h2 class="section-title">Details</h2>
+			<section class="card pad" aria-labelledby="det-h">
+				<h2 id="det-h" class="section-title">Details</h2>
 				<div class="grid">
 					{#each category.fieldSchema as f (f.key)}
 						<CustomField
@@ -334,47 +467,52 @@
 			</section>
 		{/if}
 
-		<section class="card pad">
+		<section class="logsec" aria-labelledby="log-h">
 			<div class="row sect-head">
-				<h2 class="section-title grow">Log · {logs.length}</h2>
+				<h2 id="log-h" class="section-title grow">
+					Log <span class="lcount num">{logs.length || ''}</span>
+				</h2>
 				<button type="button" class="btn sm primary" onclick={addLog} data-testid="add-log"
-					>＋ Add log entry</button
+					><Icon name="plus" size={15} /> Add entry</button
 				>
 			</div>
 			{#if logs.length}
-				<ul class="logs">
+				<ol class="logs">
 					{#each logs as l (l.id)}
 						<li class="log" data-testid="log-entry">
-							<div class="ldate">{formatDay(l.date)}</div>
-							<div class="lbody">
-								{#if l.rating != null}<StarRating value={l.rating} readonly size={15} />{/if}
-								{#if l.note}<p class="note">{l.note}</p>{:else if l.rating == null}<p
-										class="faint small"
+							<span class="pin" aria-hidden="true"></span>
+							<div class="lhead">
+								<time class="ldate" datetime={l.date}>{formatDay(l.date)}</time>
+								{#if l.rating != null}<StarRating value={l.rating} readonly size={14} />{/if}
+								<span class="grow"></span>
+								<span class="lact">
+									<button type="button" class="btn ghost sm" onclick={() => editLog(l)}>Edit</button
 									>
-										No rating or note
-									</p>{/if}
+									<button
+										type="button"
+										class="btn ghost sm danger"
+										onclick={() => removeLog(l)}
+										aria-label="Delete entry from {formatDay(l.date)}">Delete</button
+									>
+								</span>
 							</div>
-							<div class="lact">
-								<button type="button" class="btn ghost sm" onclick={() => editLog(l)}>Edit</button>
-								<button
-									type="button"
-									class="btn ghost sm danger"
-									onclick={() => removeLog(l)}
-									aria-label="Delete entry from {formatDay(l.date)}">Delete</button
+							{#if l.note}<p class="note">{l.note}</p>{:else if l.rating == null}<p
+									class="faint small"
 								>
-							</div>
+									No rating or note.
+								</p>{/if}
 						</li>
 					{/each}
-				</ul>
+				</ol>
 			{:else}
 				<p class="muted small empty-log">
-					No entries yet. When you watch, visit, read or cook it, log it here — with a rating and a
-					note. Repeats welcome.
+					Nothing logged yet. After you watch, read, visit or cook it, add the date and what you
+					thought. You can log it more than once.
 				</p>
 			{/if}
 		</section>
 
-		<section class="manage">
+		<section class="manage" aria-label="Manage">
 			<label class="field mv">
 				<span class="label">Move to</span>
 				<select
@@ -388,7 +526,7 @@
 			</label>
 			<div class="grow"></div>
 			<button type="button" class="btn danger" onclick={remove} data-testid="delete-item"
-				>Delete item</button
+				><Icon name="trash" size={16} /> Delete</button
 			>
 		</section>
 	</article>
@@ -401,7 +539,12 @@
 		intro={logIntro?.intro}
 		onclose={() => (logOpen = false)}
 	/>
-	<LinkMatchModal open={linkOpen} {item} onclose={() => (linkOpen = false)} />
+	<LinkMatchModal
+		open={linkOpen}
+		{item}
+		provider={category?.provider ?? 'tmdb'}
+		onclose={() => (linkOpen = false)}
+	/>
 {/if}
 
 <style>
@@ -417,18 +560,42 @@
 	.detail {
 		display: flex;
 		flex-direction: column;
-		gap: var(--s-4);
+		gap: var(--s-6);
+	}
+	.crumbs {
+		margin-bottom: calc(-1 * var(--s-4));
 	}
 	.crumbs a {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		min-height: 40px;
+		padding-right: var(--s-2);
 		color: var(--text-2);
+		font-size: var(--fs-sm);
+		font-weight: 550;
 	}
+	.crumbs a:hover {
+		color: var(--text);
+		text-decoration: none;
+	}
+
+	/* ---- Editorial header ---- */
 	.hero {
-		display: flex;
-		gap: var(--s-4);
-		align-items: flex-start;
+		position: relative;
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr);
+		gap: var(--s-5);
+		align-items: end;
+		isolation: isolate;
+	}
+	.art :global(.poster) {
+		box-shadow:
+			inset 0 0 0 1px color-mix(in srgb, var(--text) 8%, transparent),
+			0 2px 4px rgb(40 25 10 / 0.12),
+			0 12px 32px rgb(40 25 10 / 0.16);
 	}
 	.hmain {
-		flex: 1;
 		min-width: 0;
 		display: flex;
 		flex-direction: column;
@@ -436,18 +603,22 @@
 		align-items: flex-start;
 	}
 	.title-input {
-		width: 100%;
+		width: calc(100% + var(--s-2));
 		border: 1px solid transparent;
 		border-radius: var(--r);
 		background: transparent;
 		color: var(--text);
-		font: inherit;
-		font-size: var(--fs-xl);
-		font-weight: 700;
-		letter-spacing: -0.02em;
-		line-height: 1.2;
+		font-family: var(--font-serif);
+		font-size: var(--fs-2xl);
+		font-weight: 560;
+		letter-spacing: -0.022em;
+		line-height: 1.1;
 		padding: 2px var(--s-2);
 		margin-left: calc(-1 * var(--s-2));
+		text-overflow: ellipsis;
+		transition:
+			border-color var(--dur-1) ease,
+			background-color var(--dur-1) ease;
 	}
 	.title-input:hover {
 		border-color: var(--border);
@@ -458,86 +629,250 @@
 		box-shadow: var(--ring);
 		background: var(--surface);
 	}
-	.tagline {
-		font-style: italic;
-		color: var(--text-2);
+	.meta {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0 var(--s-2);
 		font-size: var(--fs-sm);
+		color: var(--text-2);
+	}
+	.meta span + span::before {
+		content: '·';
+		margin-right: var(--s-2);
+		color: var(--text-3);
+	}
+	.tagline {
+		font-family: var(--font-serif);
+		font-style: italic;
+		font-size: var(--fs-md);
+		color: var(--text-2);
+		max-width: 52ch;
 	}
 	.controls {
 		display: flex;
 		align-items: center;
 		gap: var(--s-3);
 		flex-wrap: wrap;
+		margin-top: var(--s-1);
 	}
 	.status {
 		width: auto;
-		min-height: 34px;
+		min-height: 36px;
 		padding-top: 4px;
 		padding-bottom: 4px;
-		font-weight: 600;
+		font-weight: 650;
 		font-size: var(--fs-sm);
 		border-radius: var(--r-pill);
+		border-color: transparent;
+		transition:
+			background-color var(--dur-2) ease,
+			color var(--dur-2) ease;
+	}
+	@media (pointer: coarse) {
+		.status {
+			min-height: 44px;
+		}
 	}
 	.status.want {
 		background-color: var(--accent-soft);
 		color: var(--accent-text);
-		border-color: transparent;
 	}
 	.status.in_progress {
 		background-color: var(--warn-soft);
 		color: var(--warn);
-		border-color: transparent;
 	}
 	.status.done {
 		background-color: var(--ok-soft);
 		color: var(--ok);
-		border-color: transparent;
+	}
+	.status.dropped {
+		background-color: var(--surface-2);
+		color: var(--text-2);
 	}
 	.needs {
 		color: var(--warn);
+		max-width: 52ch;
+	}
+
+	/* ---- About ---- */
+	.about {
+		display: flex;
+		flex-direction: column;
+		gap: var(--s-4);
+		padding-top: var(--s-5);
+		border-top: 1px solid var(--border);
 	}
 	.overview {
-		line-height: 1.6;
+		font-size: 1rem;
+		line-height: 1.65;
+		max-width: 68ch;
 	}
 	.facts {
 		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-		gap: var(--s-2) var(--s-4);
+		grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+		gap: var(--s-3) var(--s-5);
 		margin: 0;
 	}
 	.facts dt {
 		font-size: var(--fs-xs);
-		color: var(--text-3);
+		color: var(--text-2);
 	}
 	.facts dd {
 		margin: 0;
 		font-size: var(--fs-sm);
+		font-weight: 550;
 	}
 	.attr a {
+		display: inline-flex;
+		align-items: center;
+		gap: 3px;
 		color: inherit;
 		text-decoration: underline;
 	}
-	.section-title {
-		margin-bottom: var(--s-3);
+
+	/* ---- Place: address, facts, links, map ---- */
+	.place {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: var(--s-5);
+		padding-top: var(--s-5);
+		border-top: 1px solid var(--border);
 	}
-	.sect-head .section-title {
-		margin-bottom: 0;
+	@media (min-width: 900px) {
+		.place {
+			grid-template-columns: minmax(0, 1fr) minmax(0, 400px);
+			align-items: start;
+		}
 	}
-	.sect-head {
-		margin-bottom: var(--s-3);
+	.pinfo {
+		display: flex;
+		flex-direction: column;
+		gap: var(--s-4);
+		min-width: 0;
+	}
+	.addr {
+		font-family: var(--font-serif);
+		font-size: var(--fs-md);
+		line-height: 1.45;
+		max-width: 46ch;
+	}
+	.hours dd {
+		display: flex;
+		flex-direction: column;
+		font-variant-numeric: tabular-nums;
+	}
+	.place .facts {
+		grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+	}
+	.place .facts .hours {
+		grid-column: 1 / -1;
+	}
+	.plinks {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--s-2);
+	}
+	.plinks .btn {
+		max-width: 100%;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.touch-only {
+		display: none !important;
+	}
+	@media (pointer: coarse) {
+		.touch-only {
+			display: inline-flex !important;
+		}
+	}
+
+	/* ---- Who told you: the "why" as a pull-quote ---- */
+	.context {
+		display: flex;
+		flex-direction: column;
+		gap: var(--s-4);
+		padding: var(--s-5);
+		border-radius: var(--r-lg);
+		background: var(--surface);
+		border: 1px solid var(--border);
+	}
+	.quote {
+		position: relative;
+		padding-left: 34px;
+	}
+	.qmark {
+		position: absolute;
+		left: -2px;
+		top: -14px;
+		font-family: var(--font-serif);
+		font-size: 4rem;
+		line-height: 1;
+		color: var(--accent);
+		opacity: 0.85;
+	}
+	.why {
+		display: block;
+		width: 100%;
+		min-height: 2.6em;
+		field-sizing: content;
+		resize: none;
+		padding: 4px var(--s-2);
+		margin-left: calc(-1 * var(--s-2));
+		border: 1px solid transparent;
+		border-radius: var(--r);
+		background: transparent;
+		color: var(--text);
+		font-family: var(--font-serif);
+		font-size: 1.375rem;
+		font-style: italic;
+		line-height: 1.4;
+		letter-spacing: -0.005em;
+		transition:
+			border-color var(--dur-1) ease,
+			background-color var(--dur-1) ease;
+	}
+	.why:hover {
+		border-color: var(--border);
+	}
+	.why:focus {
+		outline: none;
+		border-color: var(--accent);
+		box-shadow: var(--ring);
+		background: var(--bg);
+	}
+	.byline {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: var(--s-3);
 	}
 	.grid {
 		display: grid;
 		grid-template-columns: 1fr;
 		gap: var(--s-3);
+		margin-top: var(--s-3);
 	}
 	@media (min-width: 640px) {
+		.byline,
 		.grid {
 			grid-template-columns: 1fr 1fr;
 		}
+		.byline :global(.full),
 		.grid :global(.full) {
 			grid-column: 1 / -1;
 		}
+	}
+
+	/* ---- Log as a timeline ---- */
+	.sect-head {
+		margin-bottom: var(--s-4);
+	}
+	.lcount {
+		font-family: var(--font);
+		font-size: var(--fs-sm);
+		font-weight: 600;
+		color: var(--text-2);
+		margin-left: 4px;
 	}
 	.logs {
 		list-style: none;
@@ -545,68 +880,104 @@
 		padding: 0;
 	}
 	.log {
-		display: grid;
-		grid-template-columns: 1fr auto;
-		grid-template-areas: 'date act' 'body body';
-		gap: var(--s-1) var(--s-3);
-		padding: var(--s-3) 0;
-		border-top: 1px solid var(--border);
-	}
-	.log:first-child {
-		border-top: none;
-		padding-top: 0;
-	}
-	@media (min-width: 640px) {
-		.log {
-			grid-template-columns: 120px 1fr auto;
-			grid-template-areas: 'date body act';
-			align-items: start;
-		}
-	}
-	.ldate {
-		grid-area: date;
-		font-size: var(--fs-sm);
-		font-weight: 600;
-	}
-	.lbody {
-		grid-area: body;
+		position: relative;
 		display: flex;
 		flex-direction: column;
 		gap: var(--s-1);
-		min-width: 0;
+		padding: 0 0 var(--s-5) 28px;
+	}
+	/* The rail runs between pins; the last entry ends it. */
+	.log::before {
+		content: '';
+		position: absolute;
+		left: 5px;
+		top: 16px;
+		bottom: 0;
+		width: 2px;
+		border-radius: 1px;
+		background: var(--border);
+	}
+	.log:last-child::before {
+		display: none;
+	}
+	.pin {
+		position: absolute;
+		left: 0;
+		top: 6px;
+		width: 12px;
+		height: 12px;
+		border-radius: 50%;
+		background: var(--surface);
+		border: 2px solid var(--accent);
+	}
+	.log:first-child .pin {
+		background: var(--accent);
+	}
+	.lhead {
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: var(--s-1) var(--s-3);
+		min-height: 24px;
+	}
+	.ldate {
+		font-family: var(--font-serif);
+		font-size: var(--fs-md);
+		font-weight: 600;
 	}
 	.lact {
-		grid-area: act;
 		display: flex;
 		gap: 2px;
+		margin: -6px 0;
 	}
 	.note {
 		white-space: pre-wrap;
 		overflow-wrap: anywhere;
+		max-width: 65ch;
+		line-height: 1.55;
 	}
 	.empty-log {
-		padding: var(--s-2) 0;
+		max-width: 60ch;
+		padding: var(--s-3) var(--s-4);
+		border-radius: var(--r-lg);
+		border: 1px dashed var(--border-strong);
 	}
+
 	.manage {
 		display: flex;
 		align-items: flex-end;
 		gap: var(--s-3);
 		flex-wrap: wrap;
-		padding-top: var(--s-2);
+		padding-top: var(--s-5);
+		border-top: 1px solid var(--border);
 	}
 	.mv {
-		min-width: 180px;
+		min-width: 200px;
 	}
-	@media (max-width: 480px) {
+
+	/* ---- Phone ---- */
+	@media (max-width: 639px) {
 		.hero {
-			gap: var(--s-3);
+			grid-template-columns: 1fr;
+			align-items: start;
+			gap: var(--s-4);
 		}
-		.hero :global(.poster) {
-			max-width: 96px;
-			max-height: 144px;
+		.art :global(.poster) {
+			width: 128px !important;
+			height: 192px !important;
+		}
+		.hero:not(.has-poster) .art :global(.poster) {
+			width: 96px !important;
+			height: 144px !important;
 		}
 		.title-input {
-			font-size: var(--fs-lg);
+			font-size: var(--fs-xl);
+		}
+		.context {
+			padding: var(--s-4);
+		}
+		.why {
+			font-size: 1.1875rem;
 		}
 	}
 </style>

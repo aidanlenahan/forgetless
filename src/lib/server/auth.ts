@@ -28,8 +28,8 @@ function createAuth() {
 			minPasswordLength: 8,
 			sendResetPassword: env.smtpUrl
 				? async ({ user, url }) => {
-						const { sendMail } = await import('./mail');
-						await sendMail(user.email, 'Reset your password', `Reset your password: ${url}`);
+						const { sendPasswordReset } = await import('./mail');
+						await sendPasswordReset(user.email, url);
 					}
 				: undefined
 		},
@@ -41,7 +41,18 @@ function createAuth() {
 			}
 		},
 		session: { expiresIn: 60 * 60 * 24 * 60, updateAge: 60 * 60 * 24 },
-		rateLimit: { enabled: true, window: 60, max: 30 },
+		rateLimit: env.authRateLimitMax
+			? {
+					enabled: true,
+					window: 60,
+					max: env.authRateLimitMax,
+					// Better Auth's built-in, stricter sign-up/sign-in rules are raised too.
+					customRules: {
+						'/sign-up/email': { window: 10, max: env.authRateLimitMax },
+						'/sign-in/email': { window: 10, max: env.authRateLimitMax }
+					}
+				}
+			: { enabled: true, window: 60, max: 30 },
 		databaseHooks: {
 			user: {
 				create: {
