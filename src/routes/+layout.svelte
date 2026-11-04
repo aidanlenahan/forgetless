@@ -9,6 +9,7 @@
 	import AuthPage from '#lib/components/AuthPage.svelte';
 	import Toasts from '#lib/components/Toasts.svelte';
 	import ConfirmHost from '#lib/components/ConfirmHost.svelte';
+	import Logo from '#lib/components/Logo.svelte';
 	import type { LayoutProps } from './$types';
 
 	let { children }: LayoutProps = $props();
@@ -36,7 +37,7 @@
 
 {#if session.status === 'loading'}
 	<div class="splash" aria-busy="true" aria-label="Loading">
-		<span class="logo" aria-hidden="true">✦</span>
+		<span class="mark"><Logo size={40} wordmark={false} /></span>
 	</div>
 {:else if session.status === 'signedIn' && !isAuthRoute}
 	<AppShell>{@render children()}</AppShell>
@@ -54,22 +55,15 @@
 		min-height: 100dvh;
 		display: grid;
 		place-items: center;
+		background: var(--bg);
 	}
-	.logo {
-		width: 48px;
-		height: 48px;
-		border-radius: 14px;
-		display: grid;
-		place-items: center;
-		background: var(--accent);
-		color: var(--on-accent);
-		font-size: 24px;
-		animation: breathe 1.4s ease-in-out infinite;
+	.mark {
+		display: block;
+		animation: breathe 1.6s ease-in-out infinite;
 	}
 	@keyframes breathe {
 		50% {
-			transform: scale(0.92);
-			opacity: 0.7;
+			opacity: 0.55;
 		}
 	}
 </style>

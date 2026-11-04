@@ -26,7 +26,7 @@ ENV NODE_ENV=production \
 	APP_BUILD_ORIGIN=$APP_ORIGIN \
 	APP_DB_PATH=/data/app.db \
 	APP_MIGRATIONS_DIR=/app/drizzle \
-	BODY_SIZE_LIMIT=10M
+	BODY_SIZE_LIMIT=21M
 
 COPY --from=build --chown=node:node /app/package.json ./package.json
 COPY --from=build --chown=node:node /app/node_modules ./node_modules

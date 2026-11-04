@@ -43,6 +43,26 @@ The client stores the returned entry into Dexie `catalogEntries` and saves the i
 A missing `TMDB_API_KEY` disables the provider (`/api/config` reports `providers.tmdb=false`) and the Watch
 category behaves as custom-only.
 
+## Imports and catalogs (Phase 2)
+- `src/lib/shared/csv.ts`: the one CSV reader/writer (RFC 4180, BOM, CRLF, `="..."` unwrapping).
+- `src/lib/server/imports/`: per-app parsers (`letterboxd.ts`, `imdb.ts`, `goodreads.ts`) produce normalised
+  `ImportRecord`s; `detect.ts` unzips (fflate) and picks the parser; `match.ts` matches to TMDB (throttled,
+  429 backoff, via `cachedSearch`/`selectEntry`); `jobs.ts` builds the preview and runs the in-memory job,
+  writing through `repo.applyMutations` in batches of 25.
+- Preview → commit hand-off uses `src/lib/server/stash.ts` (in-memory, per user, 30 min), so files are uploaded once.
+- `src/lib/server/catalogs.ts`: user catalogs. Rows are `catalog_entries` with source `catalog:<catalogId>`.
+  They are private: never read them without going through `catalogs.user_id` (see `searchCatalogs`,
+  `repo.foreignCatalogSources`). They're not in the shared provider registry for that reason.
+```
+POST /api/import/apps/preview   multipart file[] (+source) -> AppImportPreview
+POST /api/import/apps/commit    { previewId, categoryId | 'new', duplicates?: 'skip'|'merge' } -> 202 { job }
+GET  /api/import/apps/jobs/:id  -> { job: AppImportJob }
+POST /api/catalogs/preview      multipart file -> CatalogPreview
+POST /api/catalogs              { previewId, categoryId, name, mapping, addFields? } -> 201 { catalog, category }
+GET  /api/catalogs?categoryId=  -> { catalogs }        DELETE /api/catalogs/:id -> { ok }
+GET  /api/catalogs/search?categoryId=&q= -> { entries: CatalogEntry[] }
+```
+
 ## Config
 Everything is in `src/lib/server/env.ts` and documented in `.env.example`. Env prefix is `APP_` (renaming-safe).
 

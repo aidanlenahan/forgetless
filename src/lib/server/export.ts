@@ -2,8 +2,11 @@
 // they are unit-testable; the routes in src/routes/api/export.*, api/import only add HTTP concerns.
 import { uuidv7 } from 'uuidv7';
 import { getDb, schema, type DB } from './db';
-import { applyMutations, snapshot, wipeUserData } from './repo';
+import { applyMutations, foreignCatalogSources, snapshot, wipeUserData } from './repo';
 import type { Category, CatalogEntry, ExportFile, Item, LogEntry, Mutation } from '../shared/types';
+import { csvField, csvRow } from '../shared/csv';
+
+export { csvField, csvRow };
 
 export const EXPORT_FORMAT = 'forgetless-export';
 export const EXPORT_VERSION = 1;
@@ -80,10 +83,17 @@ const isId = (v: unknown): v is string => typeof v === 'string' && /^[0-9a-zA-Z-
  * local ids. Existing (shared) entries are never overwritten by user uploads; newly inserted ones get
  * fetchedAt=0 so the provider refreshes them the next time anyone selects that title.
  */
-function importCatalog(db: DB, entries: CatalogEntry[]): Map<string, string> {
+function importCatalog(db: DB, entries: CatalogEntry[], userId: string): Map<string, string> {
 	const idMap = new Map<string, string>();
+	// Entries of another user's (private) catalog are never linked or copied.
+	const foreign = foreignCatalogSources(
+		db,
+		userId,
+		entries.map((e) => (typeof e.source === 'string' ? e.source : ''))
+	);
 	for (const e of entries) {
 		if (!isId(e.id) || typeof e.source !== 'string' || typeof e.externalId !== 'string') continue;
+		if (foreign.has(e.source)) continue;
 		if (typeof e.title !== 'string' || !e.title.trim() || typeof e.kind !== 'string') continue;
 		const existing = db.sqlite
 			.prepare('SELECT id FROM catalog_entries WHERE source = ? AND external_id = ?')
@@ -162,7 +172,7 @@ export function importExport(
 	const file = parseExportFile(input);
 	const tx = db.sqlite.transaction(() => {
 		if (mode === 'replace') wipeUserData(userId, db);
-		const catalogMap = importCatalog(db, file.catalogEntries);
+		const catalogMap = importCatalog(db, file.catalogEntries, userId);
 
 		const mapCat = remapper(
 			foreignIds(db, 'categories', userId, file.categories.map((c) => c.id).filter(isId))
@@ -212,18 +222,6 @@ export function importExport(
 }
 
 // ---------- CSV ----------
-
-/** RFC 4180 field escaping, plus a guard against spreadsheet formula injection for text values. */
-export function csvField(v: unknown): string {
-	if (v == null) return '';
-	let s = typeof v === 'string' ? v : typeof v === 'object' ? JSON.stringify(v) : String(v);
-	if (typeof v === 'string' && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
-	return /[",\r\n]|^\s|\s$/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
-
-export function csvRow(values: unknown[]): string {
-	return values.map(csvField).join(',');
-}
 
 /** One CSV for one category: fixed columns plus one column per custom field (header = field label). */
 export function toCsv(category: Category, items: Item[], logEntries: LogEntry[]): string {

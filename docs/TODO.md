@@ -38,4 +38,26 @@ Tracks PRD progress. `[x]` done · `[~]` partial · `[ ]` not started.
 - [ ] Server FTS endpoint exists (`/api/search`) but the UI uses local search only.
 - [ ] Better Auth uses scrypt for passwords (PRD said Argon2id); fine for now, revisit if desired.
 - [ ] The build bakes in `APP_ORIGIN` (adapter-node 6 has no runtime ORIGIN). Rebuild the image if the public URL changes.
-- [ ] Phase 2: catalog import, Letterboxd/Goodreads/IMDb import, Open Library, share target, priority.
+- [ ] Phase 2: Open Library, share target, priority, self-hosting extras (see below).
+
+## Phase 2: Get data in
+- [x] App imports: Letterboxd (ZIP or CSVs), IMDb (ratings + list exports), Goodreads (library export).
+  `/import` page → `POST /api/import/apps/preview` → `POST /api/import/apps/commit` (background job) →
+  `GET /api/import/apps/jobs/:id`. TMDB matching (IMDb ids via `/find`, Letterboxd by title + year ±1),
+  throttled (4 at a time, 429 backoff), cached through `catalog_entries`. Duplicates skipped or merged.
+  Unmatched rows become custom items with `needsMatch` (list filter `?match=1`). Unit + e2e tests.
+- [x] Catalog import: `catalogs` table (migration 0002), rows in `catalog_entries` as `catalog:<id>`, private
+  to the owner (search joins through `catalogs.user_id`; sync and JSON import drop other users' rows).
+  Settings → list → Catalogs (upload, map columns, optional new fields, delete). Quick capture shows a
+  "From your catalogs" group. Round-trips through export/import.
+- Gaps:
+  - [ ] Catalog search is server-only; no offline (Dexie) copy of catalog rows yet.
+  - [ ] Import jobs and upload previews live in memory: a restart loses a running job (rows already written
+    stay; re-running the import skips them). Single-instance only.
+  - [ ] Letterboxd `likes/` and `lists/` are ignored; IMDb TV episodes and video games are imported as custom
+    items without matching; Goodreads "Read Count" > 1 still gives one log entry (only one read date exported).
+  - [ ] Custom (unmatched) items carry no year, so a re-import can only tell same-title remakes apart by their
+    source link.
+  - [ ] Deleting a list doesn't delete its catalogs (they become unreachable, not visible). `wipeUserData`
+    (JSON import "replace") keeps catalogs.
+  - [ ] No UI yet to rename a catalog or change its mapping (delete and re-upload).

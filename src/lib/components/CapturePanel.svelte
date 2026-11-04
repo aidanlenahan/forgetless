@@ -1,8 +1,10 @@
 <script lang="ts">
-	// Quick capture: one input -> (1) your matching items, (2) provider hits, (3) add as custom.
+	// Quick capture: one input -> (1) your matching items, (2) your catalog rows, (3) provider hits,
+	// (4) add as custom.
 	// Then an optional context sheet with a one-tap Save.
 	import { goto } from '$app/navigation';
 	import Poster from './Poster.svelte';
+	import Icon from './Icon.svelte';
 	import { capture, toast } from '#lib/client/ui.svelte.ts';
 	import { store } from '#lib/client/store.svelte.ts';
 	import { session } from '#lib/client/session.svelte.ts';
@@ -12,8 +14,16 @@
 	import { titleMatches, distinctValues, parseTags, normalize } from '#lib/client/queries.ts';
 	import { timeAgo } from '#lib/client/format.ts';
 	import {
+		hasCatalogs,
+		refreshCatalogs,
+		searchCatalogs,
+		catalogFields
+	} from '#lib/client/catalogs.svelte.ts';
+	import { localDb } from '#lib/client/db.ts';
+	import {
 		STATUSES,
 		STATUS_LABELS,
+		type CatalogEntry,
 		type CatalogHit,
 		type Item,
 		type Status
@@ -55,6 +65,7 @@
 		needsMatch: boolean;
 		imageUrl: string | null;
 		sub: string;
+		customFields?: Record<string, unknown>;
 	}
 	let draft = $state<Draft | null>(null);
 	let recommendedBy = $state('');
@@ -69,14 +80,46 @@
 	const q = $derived(query.trim());
 	const own = $derived(titleMatches(store.items, q, 5));
 
-	type Opt = { type: 'own'; item: Item } | { type: 'hit'; hit: CatalogHit } | { type: 'custom' };
+	// User catalogs attached to this category (server search; needs a connection).
+	void refreshCatalogs();
+	const catalogOn = $derived(online && hasCatalogs(categoryId));
+	let catHits = $state<CatalogEntry[]>([]);
+
+	type Opt =
+		| { type: 'own'; item: Item }
+		| { type: 'catalog'; entry: CatalogEntry }
+		| { type: 'hit'; hit: CatalogHit }
+		| { type: 'custom' };
 	const options = $derived<Opt[]>([
 		...own.map((item) => ({ type: 'own' as const, item })),
+		...(catalogOn ? catHits.map((entry) => ({ type: 'catalog' as const, entry })) : []),
 		...(providerOn && online ? hits.map((hit) => ({ type: 'hit' as const, hit })) : []),
 		...(q ? [{ type: 'custom' as const }] : [])
 	]);
 	const ownCount = $derived(own.length);
+	const catCount = $derived(catalogOn ? catHits.length : 0);
 	const hitCount = $derived(providerOn && online ? hits.length : 0);
+
+	$effect(() => {
+		const text = q;
+		const cid = categoryId;
+		if (!catalogOn || !cid || !text) {
+			catHits = [];
+			return;
+		}
+		const ctrl = new AbortController();
+		const t = setTimeout(async () => {
+			try {
+				catHits = (await searchCatalogs(cid, text, ctrl.signal)).slice(0, 8);
+			} catch {
+				if (!ctrl.signal.aborted) catHits = [];
+			}
+		}, 150);
+		return () => {
+			clearTimeout(t);
+			ctrl.abort();
+		};
+	});
 
 	$effect(() => {
 		void q;
@@ -183,6 +226,19 @@
 		}
 	}
 
+	async function draftFromCatalog(entry: CatalogEntry): Promise<Draft> {
+		// Keep the row locally so the item shows its metadata before the next sync.
+		await localDb().catalogEntries.put($state.snapshot(entry));
+		return {
+			title: entry.title,
+			catalogEntryId: entry.id,
+			needsMatch: false,
+			imageUrl: entry.imageUrl,
+			sub: [entry.year, entry.subtitle].filter(Boolean).join(' · ') || 'From your catalog',
+			customFields: catalogFields(entry)
+		};
+	}
+
 	function openExisting(item: Item) {
 		capture.open = false;
 		void goto(`/i/${item.id}`);
@@ -196,7 +252,12 @@
 		}
 		if (opt.type === 'own') return openExisting(opt.item);
 		if (selecting) return;
-		draft = opt.type === 'hit' ? await draftFromHit(opt.hit) : customDraft(q);
+		draft =
+			opt.type === 'hit'
+				? await draftFromHit(opt.hit)
+				: opt.type === 'catalog'
+					? await draftFromCatalog(opt.entry)
+					: customDraft(q);
 		if (quick) await save();
 		else step = 'context';
 	}
@@ -210,6 +271,7 @@
 				categoryId,
 				catalogEntryId: draft.catalogEntryId,
 				needsMatch: draft.needsMatch,
+				customFields: $state.snapshot(draft.customFields) ?? {},
 				recommendedBy: recommendedBy.trim() || null,
 				source: source.trim() || null,
 				why: why.trim() || null,
@@ -228,7 +290,7 @@
 				action: { label: 'View', href: `/i/${item.id}` }
 			});
 		} catch (e) {
-			toast(`Could not save: ${e instanceof Error ? e.message : e}`, { kind: 'error' });
+			toast(`Couldn't save: ${e instanceof Error ? e.message : e}`, { kind: 'error' });
 		} finally {
 			saving = false;
 		}
@@ -287,7 +349,9 @@
 {:else if step === 'search'}
 	<div class="search">
 		<div class="inputrow">
-			<span class="icon" aria-hidden="true">{category?.icon ?? '＋'}</span>
+			<span class="icon" aria-hidden="true"
+				>{#if category}{category.icon}{:else}<Icon name="plus" size={20} />{/if}</span
+			>
 			<input
 				bind:this={input}
 				bind:value={query}
@@ -295,7 +359,7 @@
 				data-autofocus
 				data-testid="capture-input"
 				type="text"
-				placeholder={category ? `Add to ${category.name}…` : 'What do you want to remember?'}
+				placeholder={category ? `Add to ${category.name}` : 'What do you want to remember?'}
 				autocomplete="off"
 				autocapitalize="sentences"
 				enterkeyhint="go"
@@ -333,7 +397,9 @@
 		{#if q}
 			<div id="capture-results" class="results" role="listbox" aria-label="Results">
 				{#if ownCount}
-					<div class="group" role="presentation">Already on your lists</div>
+					<div class="group dupgroup" role="presentation">
+						<Icon name="alert" size={14} /> Already saved
+					</div>
 					{#each own as item, i (item.id)}
 						{@const entry = item.catalogEntryId
 							? store.catalog.get(item.catalogEntryId)
@@ -353,34 +419,62 @@
 							<Poster
 								src={entry?.imageUrl}
 								icon={store.categoryById.get(item.categoryId)?.icon}
+								title={item.title}
 								width={32}
 							/>
 							<span class="grow">
 								<span class="t truncate">{item.title}</span>
 								<span class="m warn">{ownMeta(item)}</span>
 							</span>
-							<span class="go faint small">Open →</span>
+							<span class="go small">Open</span>
+						</div>
+					{/each}
+				{/if}
+
+				{#if catalogOn && catHits.length}
+					<div class="group" role="presentation">From your catalogs</div>
+					{#each catHits as entry, j (entry.id)}
+						{@const i = ownCount + j}
+						<div
+							id={optId(i)}
+							class="opt"
+							class:active={active === i}
+							role="option"
+							tabindex="-1"
+							aria-selected={active === i}
+							data-testid="capture-result-catalog"
+							onclick={() => void choose({ type: 'catalog', entry })}
+							onkeydown={() => {}}
+							onpointerenter={() => (active = i)}
+						>
+							<Poster src={entry.imageUrl} icon={category?.icon} title={entry.title} width={32} />
+							<span class="grow">
+								<span class="t truncate">{entry.title}</span>
+								<span class="m">{[entry.year, entry.subtitle].filter(Boolean).join(' · ')}</span>
+							</span>
 						</div>
 					{/each}
 				{/if}
 
 				{#if providerOn}
 					<div class="group" role="presentation">
-						TMDB
+						From TMDB
 						{#if pstate === 'loading'}<span class="spinner" aria-label="Searching"></span>{/if}
 					</div>
 					{#if pstate === 'offline' || !online}
-						<div class="note">Offline: will save as custom, match later.</div>
+						<div class="note">
+							You're offline. It saves as a custom item and you can match it later.
+						</div>
 					{:else if pstate === 'error'}
 						<div class="note">
-							{perror || 'Search unavailable'}. You can still save it as custom.
+							{perror || 'Search is unavailable'}. You can still save it as a custom item.
 						</div>
 					{:else if pstate === 'done' && !hits.length}
-						<div class="note">No matches on TMDB.</div>
+						<div class="note">TMDB has nothing by that name.</div>
 					{/if}
 					{#if online}
 						{#each hits as hit, j (hit.source + hit.externalId + hit.kind)}
-							{@const i = ownCount + j}
+							{@const i = ownCount + catCount + j}
 							<div
 								id={optId(i)}
 								class="opt"
@@ -393,7 +487,7 @@
 								onkeydown={() => {}}
 								onpointerenter={() => (active = i)}
 							>
-								<Poster src={hit.imageUrl} icon={category?.icon} width={32} />
+								<Poster src={hit.imageUrl} icon={category?.icon} title={hit.title} width={32} />
 								<span class="grow">
 									<span class="t truncate">{hit.title}</span>
 									<span class="m"
@@ -407,26 +501,30 @@
 				{/if}
 
 				<div
-					id={optId(ownCount + hitCount)}
+					id={optId(ownCount + catCount + hitCount)}
 					class="opt custom"
-					class:active={active === ownCount + hitCount}
+					class:active={active === ownCount + catCount + hitCount}
 					role="option"
 					tabindex="-1"
-					aria-selected={active === ownCount + hitCount}
+					aria-selected={active === ownCount + catCount + hitCount}
 					data-testid="capture-result-custom"
 					onclick={() => void choose({ type: 'custom' })}
 					onkeydown={() => {}}
-					onpointerenter={() => (active = ownCount + hitCount)}
+					onpointerenter={() => (active = ownCount + catCount + hitCount)}
 				>
-					<span class="plus" aria-hidden="true">＋</span>
-					<span class="grow t">Add “{q}” as custom item</span>
+					<span class="plus" aria-hidden="true"><Icon name="plus" size={18} /></span>
+					<span class="grow"
+						><span class="t">Add “{q}”</span><span class="m">as a custom item</span></span
+					>
 					<kbd class="hide-mobile">↵</kbd>
 				</div>
 			</div>
 		{:else}
 			<p class="tip faint small">
-				Type a title. <span class="hide-mobile"
-					><kbd>↑</kbd><kbd>↓</kbd> to choose, <kbd>↵</kbd> to add, <kbd>Esc</kbd> to close.</span
+				Type a title and press <kbd>↵</kbd>.
+				<span class="hide-mobile"
+					><kbd>↑</kbd> <kbd>↓</kbd> move through results, <kbd>⌘</kbd><kbd>↵</kbd> saves without
+					details, <kbd>Esc</kbd> closes.</span
 				>
 			</p>
 		{/if}
@@ -440,7 +538,7 @@
 		}}
 	>
 		<div class="summary">
-			<Poster src={draft.imageUrl} icon={category?.icon} width={48} />
+			<Poster src={draft.imageUrl} icon={category?.icon} title={draft.title} width={44} />
 			<div class="grow">
 				<div class="t">{draft.title}</div>
 				<div class="m">{category?.icon} {category?.name} · {draft.sub}</div>
@@ -448,12 +546,16 @@
 			<button type="button" class="btn ghost sm" onclick={back}>Change</button>
 		</div>
 		{#if duplicate}
-			<p class="dup" role="status">
-				Already on your {category?.name} list, added {timeAgo(
-					duplicate.createdAt
-				)}{duplicate.recommendedBy ? `, from ${duplicate.recommendedBy}` : ''}.
+			<div class="notice dup" role="status">
+				<Icon name="alert" size={18} />
+				<p class="grow">
+					<strong>You already saved this</strong> to {category?.name}
+					{timeAgo(duplicate.createdAt)}{duplicate.recommendedBy
+						? `, from ${duplicate.recommendedBy}`
+						: ''}.
+				</p>
 				<a href="/i/{duplicate.id}" onclick={() => (capture.open = false)}>Open it</a>
-			</p>
+			</div>
 		{/if}
 
 		<div class="grid">
@@ -488,7 +590,7 @@
 					class="textarea"
 					rows="2"
 					bind:value={why}
-					placeholder="What caught your interest?"
+					placeholder="What made you want to try it?"
 					onkeydown={(e) => {
 						if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
 							e.preventDefault();
@@ -553,42 +655,59 @@
 		align-items: center;
 		gap: var(--s-2);
 		padding: var(--s-1) var(--s-1) var(--s-1) var(--s-3);
-		border: 1px solid var(--border-strong);
+		border: 1.5px solid var(--border-strong);
 		border-radius: var(--r-lg);
 		background: var(--surface);
 		transition:
-			border-color 0.12s,
-			box-shadow 0.12s;
+			border-color var(--dur-1) ease,
+			box-shadow var(--dur-1) ease;
 	}
 	.inputrow:focus-within {
 		border-color: var(--accent);
 		box-shadow: var(--ring);
 	}
 	.inputrow .icon {
+		display: grid;
+		place-items: center;
+		width: 28px;
 		font-size: 20px;
 		line-height: 1;
+		color: var(--accent);
 	}
 	.capture-input {
 		flex: 1;
 		min-width: 0;
-		height: 44px;
+		height: 48px;
 		border: none;
 		outline: none;
 		background: transparent;
 		color: var(--text);
-		font: inherit;
-		font-size: 18px;
+		font-family: var(--font-serif);
+		font-size: 1.375rem;
+		font-weight: 500;
+		letter-spacing: -0.01em;
+	}
+	.capture-input::placeholder {
+		color: var(--text-3);
+		font-style: italic;
+	}
+	.inputrow .btn {
+		min-height: 44px;
+		min-width: 72px;
 	}
 	.chips {
 		display: flex;
 		gap: var(--s-2);
 		overflow-x: auto;
 		scrollbar-width: none;
-		margin: 0 calc(-1 * var(--s-4));
-		padding: 0 var(--s-4);
+		margin: 0 calc(-1 * var(--s-5));
+		padding: 2px var(--s-5);
 	}
 	.chips::-webkit-scrollbar {
 		display: none;
+	}
+	.chips .chip {
+		flex: none;
 	}
 	@media (min-width: 720px) {
 		.chips {
@@ -604,24 +723,26 @@
 		max-height: min(52dvh, 440px);
 		overflow-y: auto;
 		margin: 0 calc(-1 * var(--s-2));
+		padding: 0 var(--s-2) var(--s-1);
 	}
 	.group {
 		display: flex;
 		align-items: center;
-		gap: var(--s-2);
+		gap: 6px;
 		padding: var(--s-3) var(--s-2) var(--s-1);
-		font-size: var(--fs-xs);
+		font-size: var(--fs-sm);
 		font-weight: 650;
-		letter-spacing: 0.06em;
-		text-transform: uppercase;
-		color: var(--text-3);
+		color: var(--text-2);
+	}
+	.dupgroup {
+		color: var(--warn);
 	}
 	.group .spinner {
 		width: 12px;
 		height: 12px;
 	}
 	.note {
-		padding: var(--s-2);
+		padding: var(--s-1) var(--s-2) var(--s-2);
 		font-size: var(--fs-sm);
 		color: var(--text-2);
 	}
@@ -629,13 +750,24 @@
 		display: flex;
 		align-items: center;
 		gap: var(--s-3);
-		padding: var(--s-2);
+		padding: 6px var(--s-2);
 		border-radius: var(--r);
 		cursor: pointer;
-		min-height: 44px;
+		min-height: 52px;
 	}
 	.opt.active {
-		background: var(--accent-soft);
+		background: var(--surface-2);
+	}
+	/* Your own matches are a warning, so they sit on the notice tint and keep it when active. */
+	.opt.own {
+		background: var(--warn-soft);
+		box-shadow: inset 0 0 0 1px var(--warn-border);
+	}
+	.opt.own.active {
+		box-shadow: inset 0 0 0 2px var(--warn);
+	}
+	.opt.own + .opt.own {
+		margin-top: 2px;
 	}
 	.t {
 		display: block;
@@ -649,24 +781,36 @@
 	.m.warn {
 		color: var(--warn);
 	}
+	.go {
+		font-weight: 650;
+		color: var(--warn);
+	}
 	.custom {
 		margin-top: var(--s-2);
 		border: 1px dashed var(--border-strong);
 	}
 	.custom.active {
-		border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+		border-style: solid;
+		border-color: var(--accent);
+		background: var(--accent-soft);
 	}
 	.plus {
+		display: grid;
+		place-items: center;
 		width: 32px;
-		text-align: center;
-		font-size: 18px;
-		color: var(--accent);
+		height: 32px;
+		border-radius: var(--r-xs);
+		background: var(--accent-soft);
+		color: var(--accent-text);
+	}
+	.custom .t {
+		font-family: var(--font-serif);
+		font-size: var(--fs-md);
+		font-weight: 560;
 	}
 	.tip {
 		padding: var(--s-1) 0;
-	}
-	.tip kbd {
-		margin: 0 1px;
+		line-height: 1.8;
 	}
 	.hide-mobile {
 		display: none;
@@ -690,17 +834,27 @@
 		border-radius: var(--r-lg);
 		background: var(--surface-2);
 	}
+	.summary .t {
+		font-family: var(--font-serif);
+		font-size: var(--fs-lg);
+		font-weight: 560;
+		line-height: 1.2;
+		letter-spacing: -0.01em;
+	}
 	.dup {
-		padding: var(--s-2) var(--s-3);
-		border-radius: var(--r);
-		background: var(--warn-soft);
+		align-items: flex-start;
+		animation: rise-in var(--dur-3) var(--ease-out);
+	}
+	.dup :global(.icon) {
+		margin-top: 1px;
+	}
+	.dup strong {
 		color: var(--warn);
-		font-size: var(--fs-sm);
+		font-weight: 700;
 	}
 	.dup a {
-		color: inherit;
-		font-weight: 650;
-		text-decoration: underline;
+		flex: none;
+		font-weight: 700;
 	}
 	.grid {
 		display: grid;
@@ -722,6 +876,7 @@
 		margin-top: 2px;
 	}
 	.sugg .tag {
+		min-height: 28px;
 		border: none;
 		cursor: pointer;
 		font: inherit;
@@ -738,5 +893,10 @@
 	}
 	.actions .primary {
 		min-width: 140px;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.dup {
+			animation: fade-in var(--dur-2) ease;
+		}
 	}
 </style>

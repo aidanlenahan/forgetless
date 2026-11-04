@@ -4,10 +4,27 @@
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="text-scale" content="scale" />
-		<meta name="theme-color" content="#4f46e5" />
+		<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f4f0e8" />
+		<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#171411" />
+		<meta name="color-scheme" content="light dark" />
 		<meta
 			name="description"
-			content="Remember every show, book, restaurant and place you want to try."
+			content="Save the shows, books, restaurants and places people tell you to try, and who told you."
+		/>
+		<!-- Self-hosted fonts (static/fonts, see scripts/copy-fonts.mjs), preloaded for the first render. -->
+		<link
+			rel="preload"
+			href="/fonts/instrument-sans-wght.woff2"
+			as="font"
+			type="font/woff2"
+			crossorigin
+		/>
+		<link
+			rel="preload"
+			href="/fonts/newsreader-560.woff2"
+			as="font"
+			type="font/woff2"
+			crossorigin
 		/>
 		<link rel="manifest" href="/manifest.webmanifest" />
 		<link rel="icon" href="/favicon.svg" type="image/svg+xml" />

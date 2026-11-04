@@ -1,16 +1,36 @@
 <script lang="ts">
-	import type { Snippet } from 'svelte';
+	import { onMount, type Component, type Snippet } from 'svelte';
 	import { page } from '$app/state';
-	import { APP_NAME } from '#lib/shared/config.ts';
 	import { store } from '#lib/client/store.svelte.ts';
 	import { session } from '#lib/client/session.svelte.ts';
 	import { capture, openCapture, isTypingTarget } from '#lib/client/ui.svelte.ts';
 	import { syncStatus } from '#lib/client/sync.ts';
+	import { tintStyle } from '#lib/client/visual.ts';
 	import SyncIndicator from './SyncIndicator.svelte';
 	import UserMenu from './UserMenu.svelte';
-	import CaptureModal from './CaptureModal.svelte';
+	import Logo from './Logo.svelte';
+	import Icon from './Icon.svelte';
 
 	let { children }: { children: Snippet } = $props();
+
+	// Quick capture is code-split out of the entry chunk: it is fetched when the browser is idle, and
+	// on demand if someone opens it first.
+	let CaptureModal = $state<Component | null>(null);
+	let loadingCapture: Promise<void> | null = null;
+	function loadCapture() {
+		loadingCapture ??= import('./CaptureModal.svelte').then((m) => {
+			CaptureModal = m.default;
+		});
+		return loadingCapture;
+	}
+	onMount(() => {
+		const w = window as Window & { requestIdleCallback?: (cb: () => void) => number };
+		if (w.requestIdleCallback) w.requestIdleCallback(() => void loadCapture());
+		else setTimeout(() => void loadCapture(), 1200);
+	});
+	$effect(() => {
+		if (capture.open && !CaptureModal) void loadCapture();
+	});
 
 	const routeId = $derived(page.route.id);
 	const currentCategoryId = $derived.by(() => {
@@ -25,7 +45,8 @@
 
 	function onKey(e: KeyboardEvent) {
 		if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
-		if (capture.open || document.querySelector('dialog[open]')) return;
+		// A dialog playing its exit animation (class "closing") no longer owns the keyboard.
+		if (capture.open || document.querySelector('dialog[open]:not(.closing)')) return;
 		if (isTypingTarget(e.target)) return;
 		if (e.key === '/' || e.key === 'n' || e.key === 'N') {
 			e.preventDefault();
@@ -38,31 +59,36 @@
 
 <div class="shell">
 	<aside class="sidebar" aria-label="Lists">
-		<a class="brand" href="/"><span class="logo" aria-hidden="true">✦</span>{APP_NAME}</a>
+		<a class="brand" href="/" aria-label="Forgetless, all lists"><Logo size={22} /></a>
 		<button type="button" class="capture-btn" onclick={() => openCapture(currentCategoryId)}>
-			<span aria-hidden="true">＋</span> Capture <kbd>N</kbd>
+			<Icon name="plus" size={17} />
+			<span class="grow">Capture</span>
+			<kbd>N</kbd>
 		</button>
-		<nav class="cats">
+		<nav class="cats" aria-label="Lists">
 			<a href="/" class="cat" aria-current={isAll ? 'page' : undefined}>
-				<span class="ic" aria-hidden="true">✳️</span><span class="grow truncate">All</span><span
-					class="n">{totalWant || ''}</span
-				>
+				<span class="ic all" aria-hidden="true"><Icon name="stack" size={16} /></span><span
+					class="grow truncate">All</span
+				><span class="n num">{totalWant || ''}</span>
 			</a>
 			{#each store.categories as c (c.id)}
 				<a
 					href="/c/{c.id}"
 					class="cat"
+					style={tintStyle(c)}
 					aria-current={currentCategoryId === c.id && routeId === '/c/[id]' ? 'page' : undefined}
 				>
 					<span class="ic" aria-hidden="true">{c.icon}</span><span class="grow truncate"
 						>{c.name}</span
-					><span class="n">{store.wantCounts.get(c.id) || ''}</span>
+					><span class="n num">{store.wantCounts.get(c.id) || ''}</span>
 				</a>
 			{/each}
 		</nav>
 		<div class="foot">
 			<a href="/settings" class="cat" aria-current={routeId === '/settings' ? 'page' : undefined}>
-				<span class="ic" aria-hidden="true">⚙️</span><span class="grow">Settings</span>
+				<span class="ic all" aria-hidden="true"><Icon name="settings" size={16} /></span><span
+					class="grow">Settings</span
+				>
 			</a>
 			<div class="footrow">
 				<UserMenu placement="up" />
@@ -72,14 +98,14 @@
 	</aside>
 
 	<header class="topbar">
-		<a class="brand" href="/"><span class="logo" aria-hidden="true">✦</span>{APP_NAME}</a>
+		<a class="brand" href="/" aria-label="Forgetless, all lists"><Logo size={21} /></a>
 		<div class="grow"></div>
 		<SyncIndicator compact={!$syncStatus.pending && $syncStatus.online} />
 		<UserMenu />
 	</header>
 	<nav class="chiprow" aria-label="Lists">
 		<a href="/" class="chip" aria-current={isAll ? 'page' : undefined}
-			>All <span class="count">{totalWant || ''}</span></a
+			>All <span class="count num">{totalWant || ''}</span></a
 		>
 		{#each store.categories as c (c.id)}
 			<a
@@ -87,32 +113,37 @@
 				class="chip"
 				aria-current={currentCategoryId === c.id && routeId === '/c/[id]' ? 'page' : undefined}
 				><span aria-hidden="true">{c.icon}</span>{c.name}
-				<span class="count">{store.wantCounts.get(c.id) || ''}</span></a
+				<span class="count num">{store.wantCounts.get(c.id) || ''}</span></a
 			>
 		{/each}
 	</nav>
 
 	<main class="content">
-		{#if isGuest && !hideGuestBanner}
-			<div class="guest" role="note">
-				<span class="grow">
-					<strong>Demo account</strong> — data is deleted 24h after creation.
-					{#if session.config.allowSignup}<a href="/settings#account">Sign up to keep yours</a>{/if}
-				</span>
-				<button
-					type="button"
-					class="btn ghost sm"
-					onclick={() => (hideGuestBanner = true)}
-					aria-label="Dismiss">×</button
-				>
-			</div>
-		{/if}
-		{#if session.offlineSession}
-			<div class="offline small" role="status">
-				Offline — showing your saved data. Changes will sync when you reconnect.
-			</div>
-		{/if}
-		{@render children()}
+		<div class="page">
+			{#if isGuest && !hideGuestBanner}
+				<div class="notice banner" role="note">
+					<span class="grow">
+						<strong>Demo account</strong>: we delete it and its data 24 hours after it was created.
+						{#if session.config.allowSignup}<a href="/settings#account">Keep your lists</a>{/if}
+					</span>
+					<button
+						type="button"
+						class="btn ghost icon sm dismiss"
+						onclick={() => (hideGuestBanner = true)}
+						aria-label="Dismiss"><Icon name="close" size={16} /></button
+					>
+				</div>
+			{/if}
+			{#if session.offlineSession}
+				<div class="notice quiet banner" role="status">
+					<Icon name="cloudOff" size={18} />
+					<span class="grow"
+						>You're offline. Your saved lists are here, and changes sync when you reconnect.</span
+					>
+				</div>
+			{/if}
+			{@render children()}
+		</div>
 	</main>
 
 	<button
@@ -123,18 +154,11 @@
 		onclick={() => openCapture(currentCategoryId)}
 		data-testid="capture-open"
 	>
-		<svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"
-			><path
-				d="M12 5v14M5 12h14"
-				stroke="currentColor"
-				stroke-width="2.25"
-				stroke-linecap="round"
-			/></svg
-		>
+		<Icon name="plus" size={26} stroke={2} />
 	</button>
 </div>
 
-<CaptureModal />
+{#if CaptureModal}<CaptureModal />{/if}
 
 <style>
 	.shell {
@@ -152,9 +176,9 @@
 		gap: var(--s-2);
 		height: var(--topbar-h);
 		padding: 0 var(--s-3) 0 var(--s-4);
-		background: color-mix(in srgb, var(--bg) 85%, transparent);
-		backdrop-filter: saturate(1.4) blur(12px);
-		-webkit-backdrop-filter: saturate(1.4) blur(12px);
+		padding-top: env(safe-area-inset-top);
+		box-sizing: content-box;
+		background: var(--bg);
 	}
 	.topbar :global(.um .who) {
 		display: none;
@@ -162,34 +186,22 @@
 	.brand {
 		display: inline-flex;
 		align-items: center;
-		gap: var(--s-2);
-		font-weight: 700;
-		font-size: var(--fs-md);
-		letter-spacing: -0.02em;
+		min-height: 44px;
 		color: var(--text);
 		text-decoration: none;
 	}
-	.logo {
-		width: 26px;
-		height: 26px;
-		border-radius: 8px;
-		display: grid;
-		place-items: center;
-		background: var(--accent);
-		color: var(--on-accent);
-		font-size: 14px;
+	.brand:hover {
+		text-decoration: none;
 	}
 	.chiprow {
 		position: sticky;
-		top: var(--topbar-h);
+		top: calc(var(--topbar-h) + env(safe-area-inset-top));
 		z-index: 19;
 		display: flex;
 		gap: var(--s-2);
 		overflow-x: auto;
-		padding: var(--s-1) var(--s-4) var(--s-3);
-		background: color-mix(in srgb, var(--bg) 85%, transparent);
-		backdrop-filter: saturate(1.4) blur(12px);
-		-webkit-backdrop-filter: saturate(1.4) blur(12px);
+		padding: 0 var(--s-4) var(--s-3);
+		background: var(--bg);
 		scrollbar-width: none;
 		border-bottom: 1px solid var(--border);
 	}
@@ -200,31 +212,20 @@
 		flex: none;
 	}
 	.content {
-		padding: var(--s-4) var(--s-4) calc(112px + env(safe-area-inset-bottom));
+		padding: var(--s-5) var(--s-4) calc(112px + env(safe-area-inset-bottom));
 		max-width: 920px;
 		margin: 0 auto;
 		min-width: 0;
 	}
-	.guest,
-	.offline {
-		display: flex;
-		align-items: center;
-		gap: var(--s-2);
-		padding: var(--s-2) var(--s-3);
-		margin-bottom: var(--s-4);
-		border-radius: var(--r);
-		background: var(--warn-soft);
-		color: var(--warn);
-		font-size: var(--fs-sm);
+	.banner {
+		margin-bottom: var(--s-5);
 	}
-	.guest a {
+	.banner :global(.icon) {
+		flex: none;
+	}
+	.dismiss {
 		color: inherit;
-		text-decoration: underline;
-		font-weight: 600;
-	}
-	.offline {
-		background: var(--surface-2);
-		color: var(--text-2);
+		margin: -6px -8px -6px 0;
 	}
 	.fab {
 		position: fixed;
@@ -240,19 +241,21 @@
 		background: var(--accent);
 		color: var(--on-accent);
 		box-shadow:
-			0 8px 24px color-mix(in srgb, var(--accent) 40%, transparent),
-			var(--shadow);
+			0 6px 18px color-mix(in srgb, var(--accent) 35%, transparent),
+			0 2px 4px rgb(40 20 10 / 0.18);
 		cursor: pointer;
 		transition:
-			transform 0.12s var(--ease),
-			background 0.12s;
+			transform var(--dur-press) var(--ease-out),
+			background-color var(--dur-1) ease;
+		touch-action: manipulation;
 	}
-	.fab:hover {
-		background: var(--accent-hover);
-		transform: translateY(-1px);
+	@media (hover: hover) {
+		.fab:hover {
+			background: var(--accent-hover);
+		}
 	}
 	.fab:active {
-		transform: scale(0.96);
+		transform: scale(0.94);
 	}
 
 	@media (min-width: 900px) {
@@ -266,41 +269,51 @@
 			width: var(--sidebar-w);
 			display: flex;
 			flex-direction: column;
-			gap: var(--s-3);
-			padding: var(--s-4) var(--s-3);
+			gap: var(--s-4);
+			padding: var(--s-5) var(--s-3) var(--s-3);
 			border-right: 1px solid var(--border);
-			background: var(--surface);
+			background: var(--bg);
 		}
 		.sidebar .brand {
-			padding: var(--s-1) var(--s-2) var(--s-2);
+			padding: 0 var(--s-2);
+			min-height: 32px;
 		}
 		.capture-btn {
 			display: flex;
 			align-items: center;
 			gap: var(--s-2);
-			padding: var(--s-2) var(--s-3);
-			border: 1px solid var(--border);
+			min-height: 40px;
+			padding: 0 var(--s-2) 0 var(--s-3);
+			border: 1px solid var(--border-strong);
 			border-radius: var(--r);
-			background: var(--bg);
+			background: var(--surface);
 			color: var(--text-2);
 			font: inherit;
 			font-size: var(--fs-sm);
+			font-weight: 600;
 			cursor: pointer;
 			text-align: left;
+			transition:
+				border-color var(--dur-1) ease,
+				color var(--dur-1) ease,
+				transform var(--dur-press) var(--ease-out);
 		}
 		.capture-btn:hover {
-			border-color: var(--border-strong);
+			border-color: var(--accent);
 			color: var(--text);
 		}
-		.capture-btn kbd {
-			margin-left: auto;
+		.capture-btn:active {
+			transform: scale(0.98);
+		}
+		.capture-btn :global(.icon) {
+			color: var(--accent);
 		}
 		.cats {
 			flex: 1;
 			overflow-y: auto;
 			display: flex;
 			flex-direction: column;
-			gap: 1px;
+			gap: 2px;
 			margin: 0 calc(-1 * var(--s-1));
 			padding: 0 var(--s-1);
 		}
@@ -308,31 +321,43 @@
 			display: flex;
 			align-items: center;
 			gap: var(--s-2);
-			padding: 7px var(--s-2);
+			min-height: 36px;
+			padding: 0 var(--s-2);
 			border-radius: var(--r-sm);
 			color: var(--text-2);
 			text-decoration: none;
-			font-size: var(--fs-sm);
+			font-size: var(--fs);
 			font-weight: 500;
+			transition:
+				background-color var(--dur-1) ease,
+				color var(--dur-1) ease;
 		}
 		.cat:hover {
-			background: var(--surface-2);
+			background: var(--surface-hover);
 			color: var(--text);
 			text-decoration: none;
 		}
 		.cat[aria-current='page'] {
-			background: var(--accent-soft);
-			color: var(--accent-text);
+			background: var(--surface-2);
+			color: var(--text);
+			font-weight: 650;
 		}
 		.ic {
-			width: 22px;
-			text-align: center;
-			font-size: 16px;
+			width: 24px;
+			height: 24px;
+			display: grid;
+			place-items: center;
+			font-size: 15px;
+			border-radius: 6px;
+			background: var(--tint-bg, transparent);
+		}
+		.ic.all {
+			background: transparent;
+			color: var(--text-2);
 		}
 		.n {
 			font-size: var(--fs-xs);
 			color: var(--text-3);
-			font-variant-numeric: tabular-nums;
 		}
 		.foot {
 			display: flex;
@@ -348,12 +373,11 @@
 		.content {
 			margin-left: var(--sidebar-w);
 			max-width: none;
-			padding: var(--s-6) var(--s-6) 128px;
+			padding: var(--s-7) var(--s-6) 128px;
 		}
-		.content > :global(*) {
+		.page {
 			max-width: 880px;
-			margin-left: auto;
-			margin-right: auto;
+			margin: 0 auto;
 		}
 		.fab {
 			right: var(--s-6);

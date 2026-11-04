@@ -6,7 +6,7 @@ import {
 	index,
 	uniqueIndex
 } from 'drizzle-orm/sqlite-core';
-import type { FieldDef } from '../../shared/types';
+import type { CatalogMapping, FieldDef } from '../../shared/types';
 
 // ---------- Better Auth tables (names/columns follow Better Auth's core schema) ----------
 export const user = sqliteTable('user', {
@@ -158,4 +158,23 @@ export const logEntries = sqliteTable(
 		serverUpdatedAt: integer('server_updated_at').notNull()
 	},
 	(t) => [index('log_user_sync').on(t.userId, t.serverUpdatedAt), index('log_item').on(t.itemId)]
+);
+
+/** User-imported autocomplete sources for a category (PRD §5). Rows live in catalog_entries with
+ * source = 'catalog:<id>' and are private to the owner. */
+export const catalogs = sqliteTable(
+	'catalogs',
+	{
+		id: text('id').primaryKey(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		categoryId: text('category_id').notNull(),
+		name: text('name').notNull(),
+		columnMap: text('column_map', { mode: 'json' }).$type<CatalogMapping>().notNull(),
+		rowCount: integer('row_count').notNull().default(0),
+		createdAt: integer('created_at').notNull(),
+		updatedAt: integer('updated_at').notNull()
+	},
+	(t) => [index('catalogs_user_category').on(t.userId, t.categoryId)]
 );

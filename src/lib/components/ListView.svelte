@@ -4,6 +4,7 @@
 	import { page } from '$app/state';
 	import { untrack } from 'svelte';
 	import ItemCard from './ItemCard.svelte';
+	import Icon from './Icon.svelte';
 	import PickModal from './PickModal.svelte';
 	import { store } from '#lib/client/store.svelte.ts';
 	import { openCapture } from '#lib/client/ui.svelte.ts';
@@ -75,55 +76,69 @@
 		(filters.tag ? 1 : 0) +
 			(filters.by ? 1 : 0) +
 			(filters.rated ? 1 : 0) +
+			(filters.match ? 1 : 0) +
 			(filters.sort !== 'added' ? 1 : 0)
 	);
 	let showMore = $state(untrack(() => activeAdvanced > 0));
 	let pickOpen = $state(false);
 	const isFiltered = $derived(!isDefaultFilters({ ...filters, q: qInput }));
 	const title = $derived(category ? category.name : 'All');
+
+	// Presentation only: list rows or a poster grid, remembered per list on this device.
+	const viewKey = $derived(`app:view:${categoryId ?? 'all'}`);
+	let view = $state<'list' | 'grid'>('list');
+	$effect(() => {
+		try {
+			view = localStorage.getItem(viewKey) === 'grid' ? 'grid' : 'list';
+		} catch {
+			view = 'list';
+		}
+	});
+	function setView(v: 'list' | 'grid') {
+		view = v;
+		try {
+			localStorage.setItem(viewKey, v);
+		} catch {
+			/* ignore */
+		}
+	}
+	const hasPosters = $derived(category?.provider === 'tmdb' || scope.some((i) => i.catalogEntryId));
 </script>
 
 <svelte:head><title>{title} · Forgetless</title></svelte:head>
 
 {#if categoryId && store.ready && !category}
 	<div class="empty">
-		<div class="big" aria-hidden="true">🤷</div>
 		<h2>This list doesn't exist</h2>
-		<p class="muted">It may have been deleted on another device.</p>
+		<p class="muted">You may have deleted it on another device.</p>
 		<a class="btn" href="/">Back to All</a>
 	</div>
 {:else}
-	<div class="head">
-		<h1>
-			{#if category}<span class="hicon" aria-hidden="true">{category.icon}</span>{/if}{title}
-		</h1>
-		<span class="count muted small">{rows.length} {rows.length === 1 ? 'item' : 'items'}</span>
-		<div class="grow"></div>
+	<header class="head">
+		<div class="titles">
+			<h1>
+				{#if category}<span class="hicon" aria-hidden="true">{category.icon}</span>{/if}{title}
+			</h1>
+			<span class="count num">{rows.length} {rows.length === 1 ? 'item' : 'items'}</span>
+		</div>
 		<button
 			type="button"
-			class="btn"
+			class="btn pick"
 			onclick={() => (pickOpen = true)}
 			disabled={!rows.length}
 			data-testid="pick-for-me"
 		>
-			<span aria-hidden="true">🎲</span> Pick for me
+			<Icon name="dice" size={18} /> Pick for me
 		</button>
-	</div>
+	</header>
 
 	<div class="toolbar">
 		<div class="searchbox">
-			<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"
-				><circle cx="7" cy="7" r="4.75" fill="none" stroke="currentColor" stroke-width="1.5" /><path
-					d="M10.5 10.5L14 14"
-					stroke="currentColor"
-					stroke-width="1.5"
-					stroke-linecap="round"
-				/></svg
-			>
+			<Icon name="search" size={17} />
 			<input
 				class="input"
 				type="search"
-				placeholder="Search title, people, notes, tags…"
+				placeholder="Search your lists"
 				aria-label="Search items"
 				bind:value={qInput}
 				data-testid="list-search"
@@ -136,8 +151,30 @@
 			aria-controls="more-filters"
 			onclick={() => (showMore = !showMore)}
 		>
-			Filters{#if activeAdvanced}<span class="badge">{activeAdvanced}</span>{/if}
+			<Icon name="filter" size={17} /><span class="hide-xs">Filters</span>{#if activeAdvanced}<span
+					class="badge num">{activeAdvanced}</span
+				>{/if}
 		</button>
+		{#if hasPosters}
+			<div class="seg" role="group" aria-label="Layout">
+				<button
+					type="button"
+					class="segbtn"
+					aria-pressed={view === 'list'}
+					aria-label="List"
+					title="List"
+					onclick={() => setView('list')}><Icon name="list" size={17} /></button
+				>
+				<button
+					type="button"
+					class="segbtn"
+					aria-pressed={view === 'grid'}
+					aria-label="Posters"
+					title="Posters"
+					onclick={() => setView('grid')}><Icon name="grid" size={17} /></button
+				>
+			</div>
+		{/if}
 	</div>
 
 	<div class="statuses" role="group" aria-label="Status filter">
@@ -202,34 +239,64 @@
 					checked={filters.rated}
 					onchange={(e) => update({ rated: e.currentTarget.checked })}
 				/>
-				Has rating
+				Has a rating
+			</label>
+			<label class="check rated">
+				<input
+					type="checkbox"
+					checked={filters.match}
+					onchange={(e) => update({ match: e.currentTarget.checked })}
+					data-testid="filter-needs-match"
+				/>
+				Needs a match
 			</label>
 		</div>
 	{/if}
 
 	{#if !store.ready || (!store.categories.length && $syncStatus.syncing)}
 		<div class="list skeleton" aria-busy="true" aria-label="Loading">
-			{#each [1, 2, 3, 4] as i (i)}<div class="sk"></div>{/each}
-		</div>
-	{:else if rows.length}
-		<div class="list card">
-			{#each rows as item (item.id)}
-				{@const logs = store.logsByItem.get(item.id)}
-				<ItemCard
-					{item}
-					category={store.categoryById.get(item.categoryId)}
-					entry={item.catalogEntryId ? store.catalog.get(item.catalogEntryId) : undefined}
-					rating={latestRating(logs)}
-					showCategory={!categoryId}
-				/>
+			{#each [1, 2, 3, 4, 5] as i (i)}
+				<div class="sk">
+					<span class="skp"></span>
+					<span class="skl"><span></span><span></span></span>
+				</div>
 			{/each}
 		</div>
+	{:else if rows.length}
+		{#if view === 'grid' && hasPosters}
+			<div class="grid">
+				{#each rows as item (item.id)}
+					{@const logs = store.logsByItem.get(item.id)}
+					<ItemCard
+						{item}
+						variant="tile"
+						category={store.categoryById.get(item.categoryId)}
+						entry={item.catalogEntryId ? store.catalog.get(item.catalogEntryId) : undefined}
+						rating={latestRating(logs)}
+					/>
+				{/each}
+			</div>
+		{:else}
+			<div class="list">
+				{#each rows as item (item.id)}
+					{@const logs = store.logsByItem.get(item.id)}
+					<ItemCard
+						{item}
+						category={store.categoryById.get(item.categoryId)}
+						entry={item.catalogEntryId ? store.catalog.get(item.catalogEntryId) : undefined}
+						rating={latestRating(logs)}
+						showCategory={!categoryId}
+					/>
+				{/each}
+			</div>
+		{/if}
 	{:else if scope.length && isFiltered}
 		<div class="empty">
-			<div class="big" aria-hidden="true">🔍</div>
 			<h2>No matches</h2>
-			<p class="muted">Nothing fits these filters{qInput ? ` and “${qInput}”` : ''}.</p>
-			<div class="row">
+			<p class="muted">
+				Nothing on this list fits these filters{qInput ? ` or “${qInput}”` : ''}.
+			</p>
+			<div class="row wrap center">
 				<button type="button" class="btn" onclick={reset}>Clear filters</button>
 				{#if qInput.trim()}<button
 						type="button"
@@ -240,16 +307,20 @@
 		</div>
 	{:else}
 		<div class="empty">
-			<div class="big" aria-hidden="true">{category?.icon ?? '✨'}</div>
-			<h2>Nothing here yet</h2>
+			{#if category}<div class="big" aria-hidden="true">{category.icon}</div>{/if}
+			<h2>{category ? `Your ${category.name} list is empty` : 'Nothing saved yet'}</h2>
 			<p class="muted">
-				Press <kbd>n</kbd> (or tap <strong>+</strong>) to capture something{category
-					? ` for ${category.name}`
-					: ''} — a show a friend mentioned, a place you walked past, a book from a podcast.
+				Next time someone mentions a show, a book or a place, press <kbd>N</kbd> or tap
+				<strong>+</strong> and type the name. Add who told you if you like.
 			</p>
 			<button type="button" class="btn primary" onclick={() => openCapture(categoryId)}
-				>Capture something</button
+				><Icon name="plus" size={18} /> Capture something</button
 			>
+			<p class="muted small">
+				Or <a href="/import" data-testid="empty-import-link"
+					>import from Letterboxd, IMDb or Goodreads</a
+				>.
+			</p>
 		</div>
 	{/if}
 
@@ -259,13 +330,38 @@
 <style>
 	.head {
 		display: flex;
-		align-items: center;
+		align-items: flex-end;
+		gap: var(--s-3);
+		margin-bottom: var(--s-5);
+	}
+	.titles {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		align-items: baseline;
 		flex-wrap: wrap;
-		gap: var(--s-2) var(--s-3);
-		margin-bottom: var(--s-4);
+		gap: 2px var(--s-3);
+	}
+	h1 {
+		font-size: var(--fs-xl);
+		overflow-wrap: anywhere;
+	}
+	@media (min-width: 900px) {
+		h1 {
+			font-size: 2.25rem;
+		}
 	}
 	.hicon {
-		margin-right: var(--s-2);
+		margin-right: 0.3em;
+		font-size: 0.8em;
+		font-style: normal;
+	}
+	.count {
+		font-size: var(--fs-sm);
+		color: var(--text-2);
+	}
+	.pick {
+		flex: none;
 	}
 	.toolbar {
 		display: flex;
@@ -277,7 +373,7 @@
 		flex: 1;
 		min-width: 0;
 	}
-	.searchbox svg {
+	.searchbox :global(.icon) {
 		position: absolute;
 		left: 12px;
 		top: 50%;
@@ -286,10 +382,30 @@
 		pointer-events: none;
 	}
 	.searchbox .input {
-		padding-left: 36px;
+		padding-left: 38px;
+		background: var(--surface);
 	}
 	.toolbar .btn {
-		min-height: 40px;
+		min-height: 44px;
+	}
+	@media (min-width: 720px) {
+		.toolbar .btn {
+			min-height: 40px;
+		}
+	}
+	@media (max-width: 420px) {
+		/* Visually hidden on narrow screens; it still names the button for screen readers. */
+		.hide-xs {
+			position: absolute;
+			width: 1px;
+			height: 1px;
+			overflow: hidden;
+			clip: rect(0 0 0 0);
+			white-space: nowrap;
+		}
+		.toolbar > .btn {
+			padding: 0 var(--s-3);
+		}
 	}
 	.badge {
 		display: inline-grid;
@@ -301,6 +417,37 @@
 		background: var(--accent);
 		color: var(--on-accent);
 		font-size: 11px;
+	}
+	.seg {
+		display: flex;
+		flex: none;
+		padding: 3px;
+		gap: 2px;
+		border: 1px solid var(--border-strong);
+		border-radius: var(--r);
+		background: var(--surface);
+	}
+	.segbtn {
+		display: grid;
+		place-items: center;
+		width: 36px;
+		border: none;
+		border-radius: 5px;
+		background: transparent;
+		color: var(--text-2);
+		cursor: pointer;
+		transition:
+			background-color var(--dur-1) ease,
+			color var(--dur-1) ease;
+	}
+	.segbtn[aria-pressed='true'] {
+		background: var(--surface-2);
+		color: var(--text);
+	}
+	@media (pointer: coarse) {
+		.segbtn {
+			width: 40px;
+		}
 	}
 	.statuses {
 		display: flex;
@@ -314,10 +461,11 @@
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 		gap: var(--s-3);
 		align-items: end;
-		padding: var(--s-3);
+		padding: var(--s-4);
 		margin-bottom: var(--s-4);
 		border-radius: var(--r-lg);
 		background: var(--surface-2);
+		animation: rise-in var(--dur-2) var(--ease-out);
 	}
 	@media (min-width: 720px) {
 		.more {
@@ -325,40 +473,68 @@
 		}
 	}
 	.rated {
-		min-height: 32px;
+		min-height: 36px;
 	}
 	.list {
 		display: flex;
 		flex-direction: column;
-		padding: var(--s-1);
+		margin: 0 calc(-1 * var(--s-3));
 	}
-	.list.card > :global(a + a)::before {
+	.list > :global(a + a)::before {
 		content: '';
 		position: absolute;
 		top: 0;
-		left: 68px;
+		left: calc(48px + var(--s-3) + var(--s-4));
 		right: var(--s-3);
 		height: 1px;
 		background: var(--border);
 	}
-	.list.card > :global(a:hover::before),
-	.list.card > :global(a:hover + a::before) {
-		opacity: 0;
+	@media (hover: hover) {
+		.list > :global(a:hover::before),
+		.list > :global(a:hover + a::before) {
+			opacity: 0;
+		}
+	}
+	.grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+		gap: var(--s-5) var(--s-3);
+	}
+	@media (min-width: 720px) {
+		.grid {
+			grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+		}
 	}
 	.skeleton {
-		gap: var(--s-2);
+		margin: 0;
 	}
 	.sk {
-		height: 72px;
-		border-radius: var(--r-lg);
-		background: linear-gradient(90deg, var(--surface-2), var(--surface-hover), var(--surface-2));
-		background-size: 200% 100%;
-		animation: shimmer 1.2s linear infinite;
+		display: flex;
+		align-items: center;
+		gap: var(--s-4);
+		padding: var(--s-3) 0;
 	}
-	@keyframes shimmer {
-		to {
-			background-position: -200% 0;
-		}
+	.skp {
+		width: 48px;
+		height: 72px;
+		border-radius: var(--r-xs);
+		background: var(--surface-2);
+	}
+	.skl {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+	.skl span {
+		height: 14px;
+		width: 55%;
+		border-radius: 3px;
+		background: var(--surface-2);
+	}
+	.skl span + span {
+		width: 30%;
+		height: 11px;
 	}
 	.empty {
 		display: flex;
@@ -368,13 +544,16 @@
 		gap: var(--s-3);
 		padding: var(--s-7) var(--s-4);
 		border: 1px dashed var(--border-strong);
-		border-radius: var(--r-xl);
+		border-radius: var(--r-lg);
 	}
 	.empty p {
-		max-width: 420px;
+		max-width: 44ch;
+	}
+	.center {
+		justify-content: center;
 	}
 	.big {
-		font-size: 40px;
+		font-size: 36px;
 		line-height: 1;
 	}
 </style>

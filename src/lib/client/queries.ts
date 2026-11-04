@@ -15,6 +15,8 @@ export interface ListFilters {
 	tag: string | null;
 	by: string | null;
 	rated: boolean;
+	/** only items flagged "needs match" (imported or captured offline without a provider match) */
+	match: boolean;
 	sort: SortKey;
 	q: string;
 }
@@ -33,6 +35,7 @@ export function parseFilters(sp: { get(key: string): string | null }): ListFilte
 		tag: sp.get('tag') || null,
 		by: sp.get('by') || null,
 		rated: sp.get('rated') === '1',
+		match: sp.get('match') === '1',
 		sort: sort && sort in SORT_LABELS ? sort : 'added',
 		q: sp.get('q') ?? ''
 	};
@@ -49,6 +52,7 @@ export function serializeFilters(f: ListFilters): string {
 	if (f.tag) sp.set('tag', f.tag);
 	if (f.by) sp.set('by', f.by);
 	if (f.rated) sp.set('rated', '1');
+	if (f.match) sp.set('match', '1');
 	if (f.sort !== 'added') sp.set('sort', f.sort);
 	if (f.q.trim()) sp.set('q', f.q.trim());
 	return sp.toString();
@@ -134,6 +138,7 @@ export function filterItems(
 			(!tag || i.tags.includes(tag)) &&
 			(!by || normalize(i.recommendedBy ?? '') === by) &&
 			(!f.rated || latestRating(logsByItem.get(i.id)) != null) &&
+			(!f.match || i.needsMatch) &&
 			matchesText(i, q)
 	);
 }

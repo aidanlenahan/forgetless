@@ -43,7 +43,7 @@
 					? e instanceof Error
 						? e.message
 						: 'Search failed'
-					: 'You are offline. Try again when connected.';
+					: "You're offline. Try again when you're connected.";
 			} finally {
 				if (!ctrl.signal.aborted) loading = false;
 			}
@@ -67,14 +67,14 @@
 			toast('Linked to TMDB', { kind: 'success' });
 			onclose();
 		} catch (e) {
-			toast(e instanceof Error ? e.message : 'Could not link', { kind: 'error' });
+			toast(e instanceof Error ? e.message : "Couldn't link it", { kind: 'error' });
 		} finally {
 			selecting = null;
 		}
 	}
 </script>
 
-<Modal {open} title="Link to TMDB match" size="md" placement="top" {onclose} testid="link-modal">
+<Modal {open} title="Find it on TMDB" size="md" placement="top" {onclose} testid="link-modal">
 	<div class="stack">
 		<div class="row">
 			<input
@@ -83,7 +83,7 @@
 				bind:value={q}
 				aria-label="Search TMDB"
 				data-autofocus
-				placeholder="Search TMDB…"
+				placeholder="Search TMDB"
 			/>
 			{#if loading}<span class="spinner"></span>{/if}
 		</div>
@@ -98,7 +98,7 @@
 						disabled={!!selecting}
 						data-testid="link-hit"
 					>
-						<Poster src={hit.imageUrl} width={36} />
+						<Poster src={hit.imageUrl} title={hit.title} width={36} />
 						<span class="grow">
 							<span class="t">{hit.title}</span>
 							<span class="m">{[hit.year, kindLabel(hit.kind)].filter(Boolean).join(' · ')}</span>
@@ -108,7 +108,7 @@
 				</li>
 			{:else}
 				{#if !loading && !error && q.trim().length >= 2}<li class="small muted">
-						No matches.
+						TMDB has nothing by that name.
 					</li>{/if}
 			{/each}
 		</ul>
@@ -138,13 +138,19 @@
 		text-align: left;
 		cursor: pointer;
 	}
+	.hit {
+		min-height: 64px;
+		transition: background-color var(--dur-1) ease;
+	}
 	.hit:hover,
 	.hit:focus-visible {
-		background: var(--accent-soft);
+		background: var(--surface-2);
 	}
 	.t {
 		display: block;
-		font-weight: 600;
+		font-family: var(--font-serif);
+		font-size: var(--fs-md);
+		font-weight: 560;
 	}
 	.m {
 		display: block;

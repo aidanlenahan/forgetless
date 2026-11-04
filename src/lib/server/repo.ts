@@ -74,7 +74,7 @@ function tagsFor(db: DB, itemIds: string[]): Map<string, string[]> {
 	return m;
 }
 
-function toItems(db: DB, rows: ItemRow[]): Item[] {
+export function toItems(db: DB, rows: ItemRow[]): Item[] {
 	const tags = tagsFor(
 		db,
 		rows.map((r) => r.id)
@@ -95,6 +95,21 @@ function toItems(db: DB, rows: ItemRow[]): Item[] {
 		updatedAt: r.updatedAt,
 		deletedAt: r.deletedAt
 	}));
+}
+
+/**
+ * User catalog entries (source 'catalog:<id>') are private to the catalog's owner. Returns the sources
+ * among `sources` whose catalog exists and belongs to someone else.
+ */
+export function foreignCatalogSources(db: DB, userId: string, sources: string[]): Set<string> {
+	const out = new Set<string>();
+	const stmt = db.sqlite.prepare('SELECT user_id FROM catalogs WHERE id = ?');
+	for (const s of new Set(sources)) {
+		if (!s.startsWith('catalog:')) continue;
+		const r = stmt.get(s.slice(8)) as { user_id: string } | undefined;
+		if (r && r.user_id !== userId) out.add(s);
+	}
+	return out;
 }
 
 /** Everything that changed for `userId` after `since` (server cursor). since=0 → full snapshot. */
@@ -125,12 +140,17 @@ export function pull(userId: string, since = 0, db = getDb()): SyncPullResponse 
 				.where(inArray(schema.catalogEntries.id, catalogIds))
 				.all()
 		: [];
+	const foreign = foreignCatalogSources(
+		db,
+		userId,
+		catalog.map((c) => c.source)
+	);
 	return {
 		cursor,
 		categories: cats.map(toCategory),
 		items: toItems(db, itemRows),
 		logEntries: logs.map(toLogEntry),
-		catalogEntries: catalog.map(toCatalogEntry)
+		catalogEntries: catalog.filter((c) => !foreign.has(c.source)).map(toCatalogEntry)
 	};
 }
 

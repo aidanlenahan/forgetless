@@ -80,7 +80,7 @@ All settings come from environment variables (see [`.env.example`](.env.example)
 | `SMTP_URL` | _(empty)_ | SMTP connection URL for password-reset emails, e.g. `smtps://user:pass@smtp.example.com:465`. Without it, use the admin CLI. |
 | `SMTP_FROM` | _(empty)_ | From address for those emails. |
 | `PORT` | `3000` | HTTP port (adapter-node). |
-| `BODY_SIZE_LIMIT` | `512K` (Docker: `10M`) | Maximum request body size (adapter-node). It's raised in the image so JSON imports fit. |
+| `BODY_SIZE_LIMIT` | `512K` (Docker: `21M`) | Maximum request body size (adapter-node). It's raised in the image so JSON imports and 20 MB app-import uploads fit. Set it yourself when running `node build` outside Docker. |
 | `PROTOCOL_HEADER`, `HOST_HEADER`, `ADDRESS_HEADER`, `XFF_DEPTH` | _(unset)_ | adapter-node reverse-proxy settings, e.g. `ADDRESS_HEADER=cf-connecting-ip` behind Cloudflare so rate limits see real client IPs. |
 | `APP_MIGRATIONS_DIR` | `./drizzle` | Location of the SQL migrations. You rarely need to change it. |
 
@@ -127,6 +127,40 @@ vite-plugin-pwa/Workbox. The manifest and icons are configured in `vite.config.t
 - `/api/**` is never cached by the service worker. Offline data lives in IndexedDB, and writes go to an outbox.
 - TMDB poster images (`image.tmdb.org`) are cached cache-first, with a bounded number of entries.
 - The manifest `id` is `/app` on purpose, so renaming the app doesn't change its installed identity.
+
+## Importing your data
+
+Open **Import** (from Settings → Your data, or from an empty list). Pick the app, upload its export, check the
+preview, choose the list to add to, and start the import. It runs on the server; the page shows progress and
+you can leave while it runs. Uploads can be up to 20 MB (outside Docker, set `BODY_SIZE_LIMIT=21M`).
+
+| App | How to export | What you get |
+|---|---|---|
+| Letterboxd | letterboxd.com → Settings → Import & Export → **Export your data**. Upload the ZIP as is (or any of `watchlist.csv`, `watched.csv`, `diary.csv`, `ratings.csv`, `reviews.csv`). | Watchlist → Want, watched → Done. Each diary entry becomes a log entry (date, rating, rewatch, tags, review). `ratings.csv` adds a rating only for films with no diary entry. Films that appear in several files become one item. |
+| IMDb | imdb.com → Your ratings, or Your watchlist / any list → ⋯ → **Export**. Upload one or more CSVs. | Rated titles → Done with a log entry (your 1–10 rating). List entries → Want, with the list description as "why". |
+| Goodreads | goodreads.com → My Books → Import and export → **Export Library** (`goodreads_library_export.csv`). | to-read → Want, currently-reading → In progress, read → Done, shelves named like "did-not-finish" → Dropped. Other shelves become tags. Rating, date read and review become a log entry. Author goes into the list's Author field (added if missing), ISBN into the item. |
+
+Ratings are converted to the app's 1–10 scale (Letterboxd and Goodreads stars × 2).
+
+When TMDB is configured, films and shows are matched to it: IMDb rows by their IMDb id, Letterboxd rows by
+title and year (±1). Rows without a confident match are saved as custom items marked "needs match". The summary
+links to them (the list's **Needs a match** filter), and you can link each one from its page. Without a TMDB key
+everything is imported as custom items marked "needs match".
+
+Items already on the target list (same TMDB entry, same source link, or the same title) are skipped by default.
+Choose "Add their log entries to the existing items" to merge instead. Re-importing the same export doesn't
+create duplicate items or log entries.
+
+To restore a Forgetless JSON export, use Settings → Your data → Import.
+
+### Catalogs
+
+A catalog is your own list (CSV or JSON) used as autocomplete for one list, for example a board-game list for
+"Board games" or a wine list for "Drink". In Settings, open a list's **Catalogs**, upload the file, pick which
+columns hold the title, subtitle, year, image URL and id, and choose what to do with the other columns (ignore,
+or copy into a field on the item). Quick capture then shows matching rows under "From your catalogs". Picking
+one saves an item linked to that row, with the mapped fields filled in. CSVs can use `,`, `;` or tab; JSON must
+be an array of objects. Catalogs are private to your account and need a connection to search.
 
 ## Admin CLI
 

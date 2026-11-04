@@ -104,7 +104,7 @@
 				<input
 					class="input sm"
 					bind:value={custom}
-					placeholder="Any emoji…"
+					placeholder="Any emoji"
 					aria-label="Custom emoji"
 					maxlength="16"
 				/>
@@ -141,7 +141,23 @@
 		grid-template-columns: repeat(7, 1fr);
 		gap: 2px;
 	}
+	.pop {
+		transform-origin: top left;
+		animation: pop 160ms var(--ease-out);
+	}
+	@keyframes pop {
+		from {
+			opacity: 0;
+			transform: scale(0.96);
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.pop {
+			animation: fade-in 120ms ease;
+		}
+	}
 	.em {
+		min-height: 32px;
 		aspect-ratio: 1;
 		border: none;
 		border-radius: var(--r-sm);

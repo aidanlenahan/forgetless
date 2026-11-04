@@ -45,7 +45,7 @@ export async function selectProviderHit(
 	return entry;
 }
 
-export const KIND_LABELS: Record<string, string> = { movie: 'Movie', tv: 'TV' };
+export const KIND_LABELS: Record<string, string> = { movie: 'Movie', tv: 'TV', catalog: 'Catalog' };
 export const kindLabel = (k: string | null | undefined) => (k ? (KIND_LABELS[k] ?? k) : '');
 
 /** "2024 · TV" plus the entry subtitle only when it adds something beyond year/kind. */

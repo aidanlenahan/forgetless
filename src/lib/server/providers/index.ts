@@ -49,7 +49,7 @@ export async function cachedSearch(
 	opts: SearchOpts = {}
 ): Promise<CatalogHit[]> {
 	const norm = q.trim().toLowerCase().replace(/\s+/g, ' ');
-	const key = `${provider.id}|${opts.kind ?? ''}|${norm}`;
+	const key = `${provider.id}|${opts.kind ?? ''}|${opts.year ?? ''}|${norm}`;
 	const cache = searchCache();
 	const hit = cache.get(key);
 	if (hit) return hit;
