@@ -21,6 +21,14 @@ export const env = {
 			: null,
 	smtpUrl: e.SMTP_URL || '',
 	smtpFrom: e.SMTP_FROM || '',
+	/** Web Push (VAPID). When unset, a key pair is generated once and kept in the DB (notify/push.ts). */
+	vapid: {
+		publicKey: e.APP_VAPID_PUBLIC_KEY || '',
+		privateKey: e.APP_VAPID_PRIVATE_KEY || '',
+		subject: e.APP_VAPID_SUBJECT || ''
+	},
+	/** How often the in-process notification scheduler runs (ms). 0 disables it. */
+	notifyTickMs: Number(e.APP_NOTIFY_TICK_MS ?? 5 * 60 * 1000),
 	guestTtlMs: 24 * 60 * 60 * 1000,
 	guestItemCap: Number(e.APP_GUEST_ITEM_CAP ?? 500)
 };
@@ -32,7 +40,8 @@ export function publicConfig() {
 		demoEnabled: env.demoEnabled,
 		oauth: { google: !!env.google, github: !!env.github },
 		providers: { tmdb: !!env.tmdbKey },
-		passwordResetEmail: !!env.smtpUrl
+		passwordResetEmail: !!env.smtpUrl,
+		notifications: { email: !!env.smtpUrl, push: true }
 	};
 }
 export type PublicConfig = ReturnType<typeof publicConfig>;
