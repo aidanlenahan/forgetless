@@ -3,12 +3,10 @@
 # Emails land in the bundled Mailpit inbox (http://localhost:8025) until you set SMTP_URL.
 services:
   app:
-    build:
-      context: .
-      args:
-        # Baked into the build (SvelteKit 3 has no runtime ORIGIN); must match APP_ORIGIN below.
-        APP_ORIGIN: ${APP_ORIGIN:-http://localhost:3000}
-    image: forgetless:local
+    # Builds from this checkout by default. To run the published image instead, set e.g.
+    # APP_IMAGE=docker.io/<you>/forgetless:latest in .env and run `docker compose pull && docker compose up -d`.
+    image: ${APP_IMAGE:-forgetless:local}
+    build: .
     restart: unless-stopped
     ports:
       - '3000:3000'

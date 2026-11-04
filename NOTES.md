@@ -11,7 +11,7 @@ Without Docker: `npm install && npm run dev` (dev runs on :3000).
 - **SvelteKit 3** is current. It renamed `$lib` → `#lib` (with file extensions) and `$app/environment` → `$app/env`. See docs/ARCHITECTURE.md.
 - **Client-rendered SPA** (`ssr = false`): the UI reads only from IndexedDB (Dexie), so it works offline. All writes go through an outbox.
 - **TMDB ids** are stored as `movie:550` / `tv:95396`, because TMDB movie and TV ids overlap.
-- **APP_ORIGIN is baked in at build time.** adapter-node 6 dropped the runtime `ORIGIN`. Compose passes it as a build arg, so change it in `.env` and rebuild.
+- **APP_ORIGIN is read at runtime** by `server.js` (adapter-node 6 has no `ORIGIN` env var), so one image works at any URL.
 - Demo guests get 24h; the purge runs at startup, hourly, and whenever a guest is created. The guest item cap defaults to 500 (`APP_GUEST_ITEM_CAP`).
 - Your TMDB token was **not committed** anywhere. Put it in your local `.env`, which is gitignored.
 

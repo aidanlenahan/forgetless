@@ -13,12 +13,8 @@ import { defineConfig } from 'vite';
 //   Only TMDB poster images are runtime-cached (CacheFirst, bounded). See src/sw.ts.
 const THEME_COLOR = '#b23a1e';
 
-// Public origin of the app, baked in at BUILD time. adapter-node 6 (SvelteKit 3) no longer reads an `ORIGIN`
-// env var: without `paths.origin` it derives the URL from the Host header and assumes https, which breaks
-// plain-http installs (Better Auth's /api/auth/* routing compares origins, and Kit's CSRF check rejects
-// form/no-body POSTs). The Dockerfile passes APP_ORIGIN as a build arg; keep it equal to the runtime
-// APP_ORIGIN (src/lib/server/env.ts uses the same default).
-const APP_ORIGIN = new URL(process.env.APP_ORIGIN || 'http://localhost:3000').origin;
+// The public origin is NOT baked in at build time: server.js supplies it per request from the runtime
+// APP_ORIGIN (adapter-node 6 has no ORIGIN env var), so one build/image works at any URL.
 
 export default defineConfig({
 	plugins: [
@@ -31,7 +27,7 @@ export default defineConfig({
 				adapter: adapter(),
 				// Absolute /_app/... URLs: the SW serves the shell precached at "/" for every route
 				// (e.g. /items/123) when offline, so asset URLs in it must not be relative.
-				paths: { relative: false, origin: APP_ORIGIN }
+				paths: { relative: false }
 			},
 			{
 				strategies: 'buildSW',

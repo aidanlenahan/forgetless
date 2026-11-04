@@ -37,7 +37,8 @@ Tracks PRD progress. `[x]` done · `[~]` partial · `[ ]` not started.
 - [ ] Guest → real account conversion in place (today: export, sign up, import).
 - [ ] Server FTS endpoint exists (`/api/search`) but the UI uses local search only.
 - [ ] Better Auth uses scrypt for passwords (PRD said Argon2id); fine for now, revisit if desired.
-- [ ] The build bakes in `APP_ORIGIN` (adapter-node 6 has no runtime ORIGIN). Rebuild the image if the public URL changes.
+- [x] `APP_ORIGIN` is applied at runtime by `server.js`, so one published image works at any URL.
+- [x] Image published to GHCR (and Docker Hub when configured) by `.github/workflows/publish.yml`.
 - [ ] Phase 2: Open Library, share target, priority, self-hosting extras (see below).
 
 ## Phase 2: Get data in
