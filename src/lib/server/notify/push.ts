@@ -183,6 +183,7 @@ export async function sendPushToUser(
 	if (!subs.length) return res;
 	const vapid = vapidKeys(db);
 	const body = JSON.stringify(payload);
+	const proxy = process.env.HTTPS_PROXY || process.env.https_proxy || undefined;
 	for (const s of subs) {
 		try {
 			await webpush.sendNotification({ endpoint: s.endpoint, keys: s.keys }, body, {
@@ -190,7 +191,9 @@ export async function sendPushToUser(
 				TTL: 24 * 60 * 60,
 				urgency: 'normal',
 				// Same topic replaces an undelivered older message of the same kind on the push service.
-				topic: payload.kind
+				topic: payload.kind,
+				// Hosts whose egress goes through an HTTP(S) proxy.
+				...(proxy ? { proxy } : {})
 			});
 			db.update(schema.pushSubscriptions)
 				.set({ lastSuccessAt: now, failureCount: 0 })

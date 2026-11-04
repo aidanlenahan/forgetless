@@ -110,8 +110,12 @@ All settings come from environment variables (see [`.env.example`](.env.example)
 | `APP_MAP_TILES_URL` | `https://tile.openstreetmap.org/{z}/{x}/{y}.png` | Map tiles on place pages. `off` hides the map. |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | _(empty)_ | Google OAuth. It's enabled only when both are set. Redirect URI: `<APP_ORIGIN>/api/auth/callback/google`. |
 | `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | _(empty)_ | GitHub OAuth. It's enabled only when both are set. Callback URL: `<APP_ORIGIN>/api/auth/callback/github`. |
-| `SMTP_URL` | _(empty)_ | SMTP connection URL for password-reset emails, e.g. `smtps://user:pass@smtp.example.com:465`. Without it, use the admin CLI. |
-| `SMTP_FROM` | _(empty)_ | From address for those emails. |
+| `SMTP_URL` | _(empty)_ (Compose: `smtp://mailpit:1025`) | SMTP connection URL for password resets and notification emails, e.g. `smtps://user%40example.com:pass@smtp.example.com:465`. See [Notifications](#notifications). |
+| `SMTP_FROM` | `"Forgetless" <no-reply@<APP_ORIGIN host>>` | From address for those emails. |
+| `APP_VAPID_PUBLIC_KEY` / `APP_VAPID_PRIVATE_KEY` | _(generated)_ | Web Push key pair. When unset, one is generated on first use and stored in the database. |
+| `APP_VAPID_SUBJECT` | _(derived)_ | Contact for push services (`mailto:` or `https:` URL). Defaults to the https origin or the `SMTP_FROM` address. |
+| `APP_NOTIFY_TICK_MS` | `300000` | How often the notification scheduler checks for due digests and reminders. `0` turns scheduled notifications off. |
+| `APP_AUTH_RATE_LIMIT_MAX` | _(unset)_ | Raises Better Auth's request limits, including sign-up/sign-in. Only for test setups (the e2e suite sets it). |
 | `PORT` | `3000` | HTTP port (adapter-node). |
 | `BODY_SIZE_LIMIT` | `512K` (Docker: `21M`) | Maximum request body size (adapter-node). It's raised in the image so JSON imports and 20 MB app-import uploads fit. Set it yourself when running `node build` outside Docker. |
 | `PROTOCOL_HEADER`, `HOST_HEADER`, `ADDRESS_HEADER`, `XFF_DEPTH` | _(unset)_ | adapter-node reverse-proxy settings, e.g. `ADDRESS_HEADER=cf-connecting-ip` behind Cloudflare so rate limits see real client IPs. |
@@ -159,7 +163,64 @@ vite-plugin-pwa/Workbox. The manifest and icons are configured in `vite.config.t
   SPA, so every route shares that shell.
 - `/api/**` is never cached by the service worker. Offline data lives in IndexedDB, and writes go to an outbox.
 - TMDB poster images (`image.tmdb.org`) are cached cache-first, with a bounded number of entries.
+- It also shows Web Push notifications and handles their buttons (see [Notifications](#notifications)).
 - The manifest `id` is `/app` on purpose, so renaming the app doesn't change its installed identity.
+
+## Notifications
+
+Settings → **Notifications** turns on two kinds of reminders. Nothing is sent until you turn one on, and demo
+accounts never get notifications.
+
+- **Digest**, weekly or monthly, at a day and hour you pick: up to N `want` items per list (default 3), the ones
+  that have waited longest first (score = age in days × (1 + priority); priority is 0 until the priority field
+  exists). You can limit it to some lists. Items in a digest or reminder are skipped for the next 30 days, and
+  an empty digest isn't sent.
+- **Old items**: once a day at most, up to 3 `want` items you saved more than N months ago (default 6) and haven't
+  edited or logged since, each with **Keep**, **Drop** and **Snooze 1 month**. These buttons are signed links
+  (`/a/<token>`, valid 30 days) that work without signing in. Keep resets the clock, Drop marks the item dropped,
+  Snooze hides it from digests and reminders for 30 days (the item page shows "Snoozed until …").
+- **Quiet hours** (default 22:00–08:00) delay a notification until they end; nothing is dropped. A **daily cap**
+  (default 3) limits scheduled notifications per day. Times use your time zone, which is taken from the browser
+  and can be changed.
+- **Send test** sends one right away (it ignores quiet hours and the cap; 5 per hour). **Preview next digest**
+  shows what would go out now.
+
+### Email
+
+With Docker Compose, email works out of the box: the bundled [Mailpit](https://mailpit.axllent.org/) service
+catches every email (digests, reminders, password resets) and shows it at <http://localhost:8025>. Nothing
+leaves your machine.
+
+To send real email, set `SMTP_URL` (and usually `SMTP_FROM`) in `.env` and run `docker compose up -d`. Characters
+like `@` in the username or password must be percent-encoded (`@` becomes `%40`). For Gmail, turn on 2-step
+verification, create an [app password](https://myaccount.google.com/apppasswords), and use:
+
+```sh
+SMTP_URL=smtps://you%40gmail.com:your-app-password@smtp.gmail.com:465
+SMTP_FROM="Forgetless <you@gmail.com>"
+```
+
+Outside Docker, email is off until `SMTP_URL` is set. For a local inbox, run
+`docker run -d -p 1025:1025 -p 8025:8025 axllent/mailpit` and set `SMTP_URL=smtp://localhost:1025`.
+
+### Web Push
+
+Push works without configuration: the server generates a VAPID key pair on first use and stores it in the
+database (or set `APP_VAPID_*` to use your own; changing keys means each device has to turn push on again). Turn
+on **Push notifications on this device** in Settings on each phone or browser. Push needs the production build
+(the service worker isn't generated by `npm run dev`) and HTTPS, except on `localhost`.
+
+On iPhone and iPad, web push only works in the installed app on iOS 16.4 or later: in Safari tap Share → **Add to
+Home Screen**, open Forgetless from the Home Screen, then turn push on. Chrome shows at most two notification
+buttons, so reminders show Keep and Snooze there; tapping the notification opens the item.
+
+### Scheduler
+
+The scheduler runs inside the app process (no cron, no extra container). Every 5 minutes it checks each user's
+latest due digest and reminder. Each send is recorded per user, kind, period and channel, so a restart never sends
+twice, and a failed channel is retried up to 3 times. After downtime it sends only the latest one that was missed,
+never a backlog. It assumes **one app instance** per database: don't run two containers against the same SQLite
+file.
 
 ## Importing your data
 

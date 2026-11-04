@@ -32,7 +32,7 @@ Tracks PRD progress. `[x]` done · `[~]` partial · `[ ]` not started.
 - [ ] 4 weeks of dogfooding
 
 ## Known gaps / next up
-- [ ] SMTP password reset: `nodemailer` not installed (falls back to logging). Admin CLI reset works.
+- [x] SMTP password reset via nodemailer (Phase 3). Verified against Mailpit; real SMTP providers untested.
 - [ ] Behind Cloudflare: configure Better Auth `advanced.ipAddress` headers (`cf-connecting-ip`) so IP rate limits work.
 - [ ] Guest → real account conversion in place (today: export, sign up, import).
 - [ ] Server FTS endpoint exists (`/api/search`) but the UI uses local search only.
@@ -77,3 +77,24 @@ Tracks PRD progress. `[x]` done · `[~]` partial · `[ ]` not started.
   - [ ] Opening hours are shown as OSM writes them (no "open now", no localisation).
   - [ ] Imports don't match places (Letterboxd/IMDb/Goodreads only feed Watch/Read).
   - [ ] Map is a static 3×3 tile block at zoom 16 (no pan/zoom, no retina tiles).
+- [x] Notifications: email (nodemailer, `SMTP_URL`; Mailpit service in compose) and Web Push (`web-push`, VAPID
+  keys from env or generated into `app_settings`). Migration 0003: `notification_prefs`, `push_subscriptions`,
+  `notification_log` (unique user+kind+period+channel), `item_surfaced`, `item_snoozes`, `app_settings`.
+  `src/lib/server/notify/`: digest (N per list, age × (1 + priority), 30-day surfaced skip, snoozes), resurface
+  (≤ 1/day, ≤ 3 items, Keep/Drop/Snooze), policy (quiet hours defer, daily cap, no guests), in-process scheduler
+  (5-min tick from the `init` hook, idempotent, latest-slot catch-up, 3 retries), signed `/a/<token>` action links.
+  API under `/api/notifications/*`. Settings → Notifications (test send, preview). Service worker push +
+  notificationclick. Unit tests (`tests/unit/notify.test.ts`) and e2e (`tests/e2e/notifications.spec.ts`).
+  Verified: test, scheduled digest, reminder and password-reset emails arrive in Mailpit and render; Chromium
+  subscribes (real FCM endpoint), the server's send is accepted by FCM (201), and the SW shows a push delivered
+  via DevTools.
+- Gaps (notifications):
+  - [ ] Push delivery to a real device not verified (sandbox has no push connection); notificationclick
+    actions not exercised end to end. iOS untested.
+  - [ ] Release alerts, TV progress, streaming availability (deferred by owner). Default watch region "US" later.
+  - [ ] Priority field not built; `priorityOf()` in `notify/digest.ts` returns 0.
+  - [x] Action links: GET only shows a confirm button (safe against email link scanners); POST applies.
+  - [ ] Digest and reminders share the 30-day cooldown, so with both on an item shows up in at most one of them.
+  - [ ] Push notifications for reminders act on the first item only (Chrome shows 2 buttons: Keep, Snooze).
+  - [ ] Snoozes are server-only (item pill needs a connection), not in JSON export/import.
+  - [ ] Single instance only (SQLite + in-process scheduler).

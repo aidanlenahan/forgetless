@@ -44,7 +44,10 @@ export const env = {
 	mapTilesUrl: url(e.APP_MAP_TILES_URL, 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'),
 	appVersion: e.npm_package_version || '0.0.1',
 	guestTtlMs: 24 * 60 * 60 * 1000,
-	guestItemCap: Number(e.APP_GUEST_ITEM_CAP ?? 500)
+	guestItemCap: Number(e.APP_GUEST_ITEM_CAP ?? 500),
+	/** Raises Better Auth's per-window request limit (incl. sign-up/sign-in). Unset = Better Auth defaults.
+	 * For test environments, where every request shares one bucket because no client IP is visible. */
+	authRateLimitMax: Number(e.APP_AUTH_RATE_LIMIT_MAX) || 0
 };
 
 /** What the client needs to know (safe to expose). */

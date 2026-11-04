@@ -481,7 +481,7 @@ describe('applyAction', () => {
 });
 
 describe('/a/[token] route', () => {
-	it('applies the action without a session and renders a confirmation', async () => {
+	it('GET only confirms; POST applies the action without a session', async () => {
 		const { getDb } = await import('../../src/lib/server/db');
 		const gdb = getDb();
 		const uid = addUser(gdb);
@@ -496,15 +496,31 @@ describe('/a/[token] route', () => {
 			gdb
 		);
 		const { GET, POST } = await import('../../src/routes/a/[token]/+server');
-		const event = (token: string) =>
-			({ params: { token }, getClientAddress: () => '127.0.0.1' }) as never;
+		const event = (token: string, contentType?: string) =>
+			({
+				params: { token },
+				getClientAddress: () => '127.0.0.1',
+				request: new Request('http://x/a/' + token, {
+					method: contentType ? 'POST' : 'GET',
+					headers: contentType ? { 'content-type': contentType } : {}
+				})
+			}) as never;
+		const status = () =>
+			(gdb.sqlite.prepare('SELECT status FROM items WHERE id = ?').get(it.id) as { status: string })
+				.status;
 
-		const res = (await GET(
-			event(signAction({ userId: uid, itemId: it.id, action: 'drop' }))
-		)) as Response;
+		const dropToken = signAction({ userId: uid, itemId: it.id, action: 'drop' });
+		const res = (await GET(event(dropToken))) as Response;
 		expect(res.status).toBe(200);
 		expect(res.headers.get('cache-control')).toBe('no-store');
-		expect(await res.text()).toContain('Dropped “Arrival”');
+		const html = await res.text();
+		expect(html).toContain('Drop “Arrival”?');
+		expect(html).toContain('<form method="post">');
+		expect(status()).toBe('want'); // a link scanner opening the URL changes nothing
+
+		const form = (await POST(event(dropToken, 'application/x-www-form-urlencoded'))) as Response;
+		expect(form.headers.get('content-type')).toContain('text/html');
+		expect(await form.text()).toContain('Dropped “Arrival”');
 		expect(
 			(gdb.sqlite.prepare('SELECT status FROM items WHERE id = ?').get(it.id) as { status: string })
 				.status

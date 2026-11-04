@@ -20,7 +20,13 @@ Without Docker: `npm install && npm run dev` (dev runs on :3000).
 - With the real TMDB key: search "severance", then pick and save. It links to the real catalog entry with a poster.
 - The Docker image builds and runs, with `/api/config` and demo creation OK.
 
+## Notifications (Phase 3)
+- `docker compose up` now also starts Mailpit: every email the app sends shows up at http://localhost:8025 until
+  you set a real `SMTP_URL` in `.env` (Gmail example in README → Notifications).
+- The scheduler runs in-process every 5 minutes; run one instance per database.
+- Push needs the production build and, on iOS, the Home Screen app (16.4+).
+
 ## Not verified (needs you)
-- Google/GitHub OAuth (needs client IDs), SMTP reset, installing on real iOS/Android devices, CI on GitHub Actions (first push will tell), Cloudflare Tunnel deploy.
+- Google/GitHub OAuth (needs client IDs), real SMTP (only Mailpit tested), push on a real phone, installing on real iOS/Android devices, CI on GitHub Actions (first push will tell), Cloudflare Tunnel deploy.
 
 See docs/TODO.md for the full checklist and next steps.

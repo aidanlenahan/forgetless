@@ -68,3 +68,22 @@ Everything is in `src/lib/server/env.ts` and documented in `.env.example`. Env p
 
 ## Ratings
 Stored 1–10, shown as 5 stars with half steps.
+
+## Notifications (Phase 3)
+- `src/lib/server/notify/`: `prefs.ts` (validate/save), `schedule.ts` + `time.ts` (local-time slots via Intl),
+  `candidates.ts` (want items not snoozed / surfaced in 30 days), `digest.ts`, `resurface.ts`, `policy.ts`
+  (quiet hours, daily cap, guests), `email.ts` (nodemailer + HTML renderer), `push.ts` (web-push, VAPID,
+  subscriptions), `tokens.ts` + `actions.ts` (signed `/a/<token>` Keep/Drop/Snooze), `scheduler.ts`
+  (`deliver()` and `runTick()`; started from the `init` hook), `service.ts` (test send, preview).
+- Idempotency: `notification_log` unique (user, kind, period_key, channel). A channel row is claimed before
+  sending; `channel = 'none'` marks an empty period. Item writes from actions go through `repo.applyMutations`.
+```
+GET/PUT /api/notifications/prefs              -> PrefsResponse (403 for guests)
+GET     /api/notifications/vapid               -> { publicKey }
+POST    /api/notifications/push/subscribe      { subscription } -> 201 { subscription, subscriptions }
+DELETE  /api/notifications/push/subscribe      { endpoint } -> { ok, subscriptions }
+POST    /api/notifications/test                { channel?: 'email'|'push'|'all' } -> DeliverOutcome
+GET     /api/notifications/preview?kind=digest|resurface -> PreviewResponse
+GET     /api/notifications/snoozes             -> { snoozes: { itemId, until }[] }
+GET|POST /a/:token                             -> HTML confirmation | JSON ActionResult (no session needed)
+```
