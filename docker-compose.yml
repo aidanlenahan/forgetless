@@ -1,0 +1,27 @@
+# Zero-config: `docker compose up --build`, then open http://localhost:3000.
+# Put overrides (TMDB_API_KEY, APP_AUTH_SECRET, OAuth, SMTP...) in a .env file next to this one; see .env.example.
+services:
+  app:
+    build:
+      context: .
+      args:
+        # Baked into the build (SvelteKit 3 has no runtime ORIGIN); must match APP_ORIGIN below.
+        APP_ORIGIN: ${APP_ORIGIN:-http://localhost:3000}
+    image: forgetless:local
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    volumes:
+      - ./data:/data
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      # Public URL of the app. Change it when serving from another host/port or behind a tunnel/proxy.
+      APP_ORIGIN: ${APP_ORIGIN:-http://localhost:3000}
+      # WARNING: the default is NOT secret. Set APP_AUTH_SECRET in .env (openssl rand -base64 32)
+      # before exposing this instance to anyone else.
+      APP_AUTH_SECRET: ${APP_AUTH_SECRET:-insecure-default-secret-change-me-0123456789}
+      APP_DEMO_ENABLED: ${APP_DEMO_ENABLED:-true}
+      APP_ALLOW_SIGNUP: ${APP_ALLOW_SIGNUP:-true}
+      APP_DB_PATH: /data/app.db
