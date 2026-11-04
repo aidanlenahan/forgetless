@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createTmdbProvider, parseTmdbId } from '../../src/lib/server/providers/tmdb';
-import { cachedSearch, selectEntry, setProviders, DETAILS_TTL_MS } from '../../src/lib/server/providers';
+import {
+	cachedSearch,
+	selectEntry,
+	setProviders,
+	DETAILS_TTL_MS
+} from '../../src/lib/server/providers';
 import { ProviderError } from '../../src/lib/server/providers/types';
 import { makeDb } from './helpers';
 
@@ -9,8 +14,20 @@ const jsonRes = (body: unknown, status = 200) =>
 
 const multi = {
 	results: [
-		{ id: 329865, media_type: 'movie', title: 'Arrival', release_date: '2016-11-10', poster_path: '/a.jpg' },
-		{ id: 95396, media_type: 'tv', name: 'Severance', first_air_date: '2022-02-17', poster_path: null },
+		{
+			id: 329865,
+			media_type: 'movie',
+			title: 'Arrival',
+			release_date: '2016-11-10',
+			poster_path: '/a.jpg'
+		},
+		{
+			id: 95396,
+			media_type: 'tv',
+			name: 'Severance',
+			first_air_date: '2022-02-17',
+			poster_path: null
+		},
 		{ id: 1, media_type: 'person', name: 'Somebody' },
 		{ id: 2, media_type: 'movie', title: 'Undated', release_date: '' }
 	]
@@ -23,7 +40,10 @@ const movieDetails = {
 	release_date: '2016-11-10',
 	poster_path: '/a.jpg',
 	overview: 'Aliens land.',
-	genres: [{ id: 18, name: 'Drama' }, { id: 878, name: 'Science Fiction' }],
+	genres: [
+		{ id: 18, name: 'Drama' },
+		{ id: 878, name: 'Science Fiction' }
+	],
 	runtime: 116
 };
 const tvDetails = {
@@ -81,7 +101,15 @@ describe('TMDB provider', () => {
 				year: 2022,
 				imageUrl: null
 			},
-			{ source: 'tmdb', externalId: 'movie:2', kind: 'movie', title: 'Undated', subtitle: 'Movie', year: null, imageUrl: null }
+			{
+				source: 'tmdb',
+				externalId: 'movie:2',
+				kind: 'movie',
+				title: 'Undated',
+				subtitle: 'Movie',
+				year: null,
+				imageUrl: null
+			}
 		]);
 	});
 
@@ -116,7 +144,12 @@ describe('TMDB provider', () => {
 			externalId: 'tv:95396',
 			kind: 'tv',
 			subtitle: 'TV · 2022',
-			data: { seasons: 2, episodes: 19, original_title: 'Severance', tmdb_url: 'https://www.themoviedb.org/tv/95396' }
+			data: {
+				seasons: 2,
+				episodes: 19,
+				original_title: 'Severance',
+				tmdb_url: 'https://www.themoviedb.org/tv/95396'
+			}
 		});
 	});
 

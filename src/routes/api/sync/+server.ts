@@ -22,7 +22,10 @@ export const POST: RequestHandler = async (event) => {
 	const body = (await event.request.json().catch(() => null)) as SyncPushRequest | null;
 	if (!body || !Array.isArray(body.mutations)) error(400, 'Expected { mutations: [] }');
 	if (body.mutations.length > 1000) error(413, 'Too many mutations in one batch');
-	if ((user.isGuest || isGuestUser(user.id)) && itemCountAfter(user.id, body.mutations) > env.guestItemCap) {
+	if (
+		(user.isGuest || isGuestUser(user.id)) &&
+		itemCountAfter(user.id, body.mutations) > env.guestItemCap
+	) {
 		error(403, `Demo accounts are limited to ${env.guestItemCap} items`);
 	}
 	try {

@@ -115,9 +115,15 @@ export function pull(userId: string, since = 0, db = getDb()): SyncPullResponse 
 		.from(schema.logEntries)
 		.where(and(eq(schema.logEntries.userId, userId), gt(schema.logEntries.serverUpdatedAt, since)))
 		.all();
-	const catalogIds = [...new Set(itemRows.map((r) => r.catalogEntryId).filter((x): x is string => !!x))];
+	const catalogIds = [
+		...new Set(itemRows.map((r) => r.catalogEntryId).filter((x): x is string => !!x))
+	];
 	const catalog = catalogIds.length
-		? db.select().from(schema.catalogEntries).where(inArray(schema.catalogEntries.id, catalogIds)).all()
+		? db
+				.select()
+				.from(schema.catalogEntries)
+				.where(inArray(schema.catalogEntries.id, catalogIds))
+				.all()
 		: [];
 	return {
 		cursor,
@@ -136,14 +142,22 @@ export function snapshot(userId: string, db = getDb()) {
 // ---------- validation ----------
 const str = (v: unknown, max = 2000): string | null =>
 	typeof v === 'string' && v.trim() !== '' ? v.slice(0, max) : null;
-const num = (v: unknown, d: number) => (typeof v === 'number' && Number.isFinite(v) ? Math.trunc(v) : d);
+const num = (v: unknown, d: number) =>
+	typeof v === 'number' && Number.isFinite(v) ? Math.trunc(v) : d;
 const isId = (v: unknown): v is string => typeof v === 'string' && /^[0-9a-zA-Z-]{8,64}$/.test(v);
 
 export class MutationError extends Error {}
 
 function normTags(tags: unknown): string[] {
 	if (!Array.isArray(tags)) return [];
-	return [...new Set(tags.filter((t) => typeof t === 'string').map((t) => t.trim().toLowerCase()).filter(Boolean))]
+	return [
+		...new Set(
+			tags
+				.filter((t) => typeof t === 'string')
+				.map((t) => t.trim().toLowerCase())
+				.filter(Boolean)
+		)
+	]
 		.slice(0, 50)
 		.map((t) => t.slice(0, 60));
 }
@@ -155,7 +169,15 @@ function updateFts(db: DB, userId: string, item: Item) {
 		.prepare(
 			'INSERT INTO items_fts (item_id, user_id, title, recommended_by, source, why, tags) VALUES (?,?,?,?,?,?,?)'
 		)
-		.run(item.id, userId, item.title, item.recommendedBy ?? '', item.source ?? '', item.why ?? '', item.tags.join(' '));
+		.run(
+			item.id,
+			userId,
+			item.title,
+			item.recommendedBy ?? '',
+			item.source ?? '',
+			item.why ?? '',
+			item.tags.join(' ')
+		);
 }
 
 /**
@@ -174,7 +196,11 @@ export function applyMutations(userId: string, mutations: Mutation[], db = getDb
 
 			if (m.kind === 'category') {
 				const c = m.row;
-				const existing = db.select().from(schema.categories).where(eq(schema.categories.id, c.id)).get();
+				const existing = db
+					.select()
+					.from(schema.categories)
+					.where(eq(schema.categories.id, c.id))
+					.get();
 				if (existing && existing.userId !== userId) throw new MutationError('forbidden');
 				if (existing && existing.updatedAt > updatedAt) {
 					skipped++;
@@ -195,7 +221,10 @@ export function applyMutations(userId: string, mutations: Mutation[], db = getDb
 					deletedAt: typeof c.deletedAt === 'number' ? c.deletedAt : null,
 					serverUpdatedAt
 				};
-				db.insert(schema.categories).values(values).onConflictDoUpdate({ target: schema.categories.id, set: values }).run();
+				db.insert(schema.categories)
+					.values(values)
+					.onConflictDoUpdate({ target: schema.categories.id, set: values })
+					.run();
 				applied++;
 			} else if (m.kind === 'item') {
 				const it = m.row;
@@ -220,7 +249,9 @@ export function applyMutations(userId: string, mutations: Mutation[], db = getDb
 					source: str(it.source, 1000),
 					why: str(it.why, 5000),
 					customFields:
-						it.customFields && typeof it.customFields === 'object' && !Array.isArray(it.customFields)
+						it.customFields &&
+						typeof it.customFields === 'object' &&
+						!Array.isArray(it.customFields)
 							? it.customFields
 							: {},
 					needsMatch: !!it.needsMatch,
@@ -229,7 +260,10 @@ export function applyMutations(userId: string, mutations: Mutation[], db = getDb
 					deletedAt: typeof it.deletedAt === 'number' ? it.deletedAt : null,
 					serverUpdatedAt
 				};
-				db.insert(schema.items).values(values).onConflictDoUpdate({ target: schema.items.id, set: values }).run();
+				db.insert(schema.items)
+					.values(values)
+					.onConflictDoUpdate({ target: schema.items.id, set: values })
+					.run();
 				const tags = normTags(it.tags);
 				db.delete(schema.itemTags).where(eq(schema.itemTags.itemId, it.id)).run();
 				for (const tag of tags) db.insert(schema.itemTags).values({ itemId: it.id, tag }).run();
@@ -237,15 +271,23 @@ export function applyMutations(userId: string, mutations: Mutation[], db = getDb
 				applied++;
 			} else if (m.kind === 'logEntry') {
 				const l = m.row;
-				const existing = db.select().from(schema.logEntries).where(eq(schema.logEntries.id, l.id)).get();
+				const existing = db
+					.select()
+					.from(schema.logEntries)
+					.where(eq(schema.logEntries.id, l.id))
+					.get();
 				if (existing && existing.userId !== userId) throw new MutationError('forbidden');
 				if (existing && existing.updatedAt > updatedAt) {
 					skipped++;
 					continue;
 				}
 				if (!isId(l.itemId)) throw new MutationError('log itemId required');
-				const date = typeof l.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(l.date) ? l.date : new Date().toISOString().slice(0, 10);
-				const rating = typeof l.rating === 'number' ? Math.min(10, Math.max(1, Math.round(l.rating))) : null;
+				const date =
+					typeof l.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(l.date)
+						? l.date
+						: new Date().toISOString().slice(0, 10);
+				const rating =
+					typeof l.rating === 'number' ? Math.min(10, Math.max(1, Math.round(l.rating))) : null;
 				const values = {
 					id: l.id,
 					userId,
@@ -258,7 +300,10 @@ export function applyMutations(userId: string, mutations: Mutation[], db = getDb
 					deletedAt: typeof l.deletedAt === 'number' ? l.deletedAt : null,
 					serverUpdatedAt
 				};
-				db.insert(schema.logEntries).values(values).onConflictDoUpdate({ target: schema.logEntries.id, set: values }).run();
+				db.insert(schema.logEntries)
+					.values(values)
+					.onConflictDoUpdate({ target: schema.logEntries.id, set: values })
+					.run();
 				applied++;
 			} else {
 				throw new MutationError('unknown mutation kind');
@@ -270,17 +315,29 @@ export function applyMutations(userId: string, mutations: Mutation[], db = getDb
 }
 
 /** Upsert catalog entries (shared cache across users). Returns the stored rows. */
-export function upsertCatalogEntries(entries: Omit<CatalogEntry, 'id'>[], db = getDb()): CatalogEntry[] {
+export function upsertCatalogEntries(
+	entries: Omit<CatalogEntry, 'id'>[],
+	db = getDb()
+): CatalogEntry[] {
 	const out: CatalogEntry[] = [];
 	for (const e of entries) {
 		const existing = db
 			.select()
 			.from(schema.catalogEntries)
-			.where(and(eq(schema.catalogEntries.source, e.source), eq(schema.catalogEntries.externalId, e.externalId)))
+			.where(
+				and(
+					eq(schema.catalogEntries.source, e.source),
+					eq(schema.catalogEntries.externalId, e.externalId)
+				)
+			)
 			.get();
-		const id = existing?.id ?? `${e.source}-${e.externalId}`.replace(/[^0-9a-zA-Z-]/g, '-').slice(0, 64);
+		const id =
+			existing?.id ?? `${e.source}-${e.externalId}`.replace(/[^0-9a-zA-Z-]/g, '-').slice(0, 64);
 		const values = { ...e, id };
-		db.insert(schema.catalogEntries).values(values).onConflictDoUpdate({ target: schema.catalogEntries.id, set: values }).run();
+		db.insert(schema.catalogEntries)
+			.values(values)
+			.onConflictDoUpdate({ target: schema.catalogEntries.id, set: values })
+			.run();
 		out.push(values as CatalogEntry);
 	}
 	return out;
@@ -296,7 +353,9 @@ export function searchItems(userId: string, q: string, limit = 50, db = getDb())
 		.join(' ');
 	if (!terms) return [];
 	const rows = db.sqlite
-		.prepare('SELECT item_id FROM items_fts WHERE items_fts MATCH ? AND user_id = ? ORDER BY rank LIMIT ?')
+		.prepare(
+			'SELECT item_id FROM items_fts WHERE items_fts MATCH ? AND user_id = ? ORDER BY rank LIMIT ?'
+		)
 		.all(terms, userId, limit) as { item_id: string }[];
 	return rows.map((r) => r.item_id);
 }
@@ -305,7 +364,9 @@ export function searchItems(userId: string, q: string, limit = 50, db = getDb())
 export function wipeUserData(userId: string, db = getDb()) {
 	const tx = db.sqlite.transaction(() => {
 		db.sqlite.prepare('DELETE FROM items_fts WHERE user_id = ?').run(userId);
-		db.sqlite.prepare('DELETE FROM item_tags WHERE item_id IN (SELECT id FROM items WHERE user_id = ?)').run(userId);
+		db.sqlite
+			.prepare('DELETE FROM item_tags WHERE item_id IN (SELECT id FROM items WHERE user_id = ?)')
+			.run(userId);
 		db.sqlite.prepare('DELETE FROM log_entries WHERE user_id = ?').run(userId);
 		db.sqlite.prepare('DELETE FROM items WHERE user_id = ?').run(userId);
 		db.sqlite.prepare('DELETE FROM categories WHERE user_id = ?').run(userId);

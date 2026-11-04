@@ -25,7 +25,9 @@ Env: APP_DB_PATH (default ./data/app.db)`);
 function openDb() {
 	const path = process.env.APP_DB_PATH ?? './data/app.db';
 	if (!existsSync(path)) {
-		console.error(`Database not found at ${path} (set APP_DB_PATH). Start the app once to create it.`);
+		console.error(
+			`Database not found at ${path} (set APP_DB_PATH). Start the app once to create it.`
+		);
 		process.exit(1);
 	}
 	const db = new Database(path);
@@ -46,11 +48,23 @@ async function main() {
 				   (SELECT group_concat(provider_id) FROM account a WHERE a.user_id = u.id) AS providers
 				 FROM user u ORDER BY u.created_at`
 			)
-			.all() as { email: string; name: string; guest: number; created: number; providers: string | null }[];
+			.all() as {
+			email: string;
+			name: string;
+			guest: number;
+			created: number;
+			providers: string | null;
+		}[];
 		if (!rows.length) console.log('No users.');
 		for (const r of rows) {
 			console.log(
-				[r.email, r.name, r.guest ? 'guest' : 'user', new Date(r.created).toISOString(), r.providers ?? ''].join('\t')
+				[
+					r.email,
+					r.name,
+					r.guest ? 'guest' : 'user',
+					new Date(r.created).toISOString(),
+					r.providers ?? ''
+				].join('\t')
 			);
 		}
 		return;
@@ -64,7 +78,8 @@ async function main() {
 			process.exit(1);
 		}
 		const db = openDb();
-		const user = db.prepare('SELECT id FROM user WHERE lower(email) = lower(?)').get(email) as { id: string } | undefined;
+		const user = db.prepare('SELECT id FROM user WHERE lower(email) = lower(?)').get(email) as
+			{ id: string } | undefined;
 		if (!user) {
 			console.error(`No user with email ${email}`);
 			process.exit(1);
@@ -72,7 +87,9 @@ async function main() {
 		const hash = await hashPassword(password);
 		const now = Date.now();
 		const res = db
-			.prepare("UPDATE account SET password = ?, updated_at = ? WHERE user_id = ? AND provider_id = 'credential'")
+			.prepare(
+				"UPDATE account SET password = ?, updated_at = ? WHERE user_id = ? AND provider_id = 'credential'"
+			)
 			.run(hash, now, user.id);
 		if (res.changes === 0) {
 			// OAuth-only user: add a credential account so they can also sign in with a password.

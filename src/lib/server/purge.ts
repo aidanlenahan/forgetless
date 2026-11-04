@@ -10,7 +10,9 @@ export function purgeExpiredGuestsSql(sqlite: BetterSqlite3.Database, now = Date
 	const tx = sqlite.transaction(() => {
 		const ids = (
 			sqlite
-				.prepare('SELECT id FROM user WHERE is_guest = 1 AND guest_expires_at IS NOT NULL AND guest_expires_at < ?')
+				.prepare(
+					'SELECT id FROM user WHERE is_guest = 1 AND guest_expires_at IS NOT NULL AND guest_expires_at < ?'
+				)
 				.all(now) as { id: string }[]
 		).map((r) => r.id);
 		const delFts = sqlite.prepare('DELETE FROM items_fts WHERE user_id = ?');

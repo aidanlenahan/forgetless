@@ -9,7 +9,9 @@ for the product plan.
 
 ## Screenshots
 
-<!-- TODO: add screenshots (docs/screenshots/*.png) once the UI settles. -->
+| Quick capture (TMDB) | Item detail | Demo on mobile | Pick for me |
+|---|---|---|---|
+| ![](docs/screenshots/capture-tmdb.png) | ![](docs/screenshots/detail.png) | ![](docs/screenshots/demo-mobile.png) | ![](docs/screenshots/pick-mobile.png) |
 
 _Coming soon._
 

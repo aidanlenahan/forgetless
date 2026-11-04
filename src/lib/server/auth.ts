@@ -16,7 +16,12 @@ function createAuth() {
 		trustedOrigins: [env.origin],
 		database: drizzleAdapter(getDb(), {
 			provider: 'sqlite',
-			schema: { user: schema.user, session: schema.session, account: schema.account, verification: schema.verification }
+			schema: {
+				user: schema.user,
+				session: schema.session,
+				account: schema.account,
+				verification: schema.verification
+			}
 		}),
 		emailAndPassword: {
 			enabled: true,

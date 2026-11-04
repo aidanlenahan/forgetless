@@ -6,13 +6,26 @@ export function makeDb(): DB {
 	return createDb(':memory:');
 }
 
-export function addUser(db: DB, id = uuidv7(), opts: { guest?: boolean; guestExpiresAt?: number } = {}) {
+export function addUser(
+	db: DB,
+	id = uuidv7(),
+	opts: { guest?: boolean; guestExpiresAt?: number } = {}
+) {
 	const now = Date.now();
 	db.sqlite
 		.prepare(
 			'INSERT INTO user (id, name, email, email_verified, is_guest, guest_expires_at, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)'
 		)
-		.run(id, 'Test', `${id}@example.test`, 0, opts.guest ? 1 : 0, opts.guestExpiresAt ?? null, now, now);
+		.run(
+			id,
+			'Test',
+			`${id}@example.test`,
+			0,
+			opts.guest ? 1 : 0,
+			opts.guestExpiresAt ?? null,
+			now,
+			now
+		);
 	return id;
 }
 

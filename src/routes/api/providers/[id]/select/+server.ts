@@ -9,7 +9,10 @@ export const POST: RequestHandler = async (event) => {
 	const user = requireUser(event);
 	const provider = getProvider(event.params.id);
 	if (!provider) error(404, 'Provider not enabled');
-	const body = (await event.request.json().catch(() => null)) as { externalId?: unknown; kind?: unknown } | null;
+	const body = (await event.request.json().catch(() => null)) as {
+		externalId?: unknown;
+		kind?: unknown;
+	} | null;
 	const externalId = typeof body?.externalId === 'string' ? body.externalId.trim() : '';
 	const kind = typeof body?.kind === 'string' ? body.kind : undefined;
 	if (!externalId || externalId.length > 100) error(400, 'Expected { externalId, kind }');

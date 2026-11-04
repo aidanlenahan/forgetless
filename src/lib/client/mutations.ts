@@ -14,7 +14,6 @@ export async function saveCategory(c: Partial<Category> & { name: string }): Pro
 	const now = Date.now();
 	const existing = c.id ? await localDb().categories.get(c.id) : undefined;
 	const row: Category = {
-		id: c.id ?? newId(),
 		icon: '📌',
 		sort: existing?.sort ?? (await localDb().categories.count()),
 		provider: null,
@@ -23,6 +22,7 @@ export async function saveCategory(c: Partial<Category> & { name: string }): Pro
 		deletedAt: null,
 		...existing,
 		...c,
+		id: c.id ?? existing?.id ?? newId(),
 		updatedAt: now
 	};
 	await enqueue([{ kind: 'category', row }]);
@@ -37,7 +37,9 @@ export async function deleteCategory(id: string) {
 	const items = await localDb().items.where('categoryId').equals(id).toArray();
 	await enqueue([
 		{ kind: 'category', row: { ...c, deletedAt: now, updatedAt: now } },
-		...items.filter((i) => !i.deletedAt).map((i) => ({ kind: 'item' as const, row: { ...i, deletedAt: now, updatedAt: now } }))
+		...items
+			.filter((i) => !i.deletedAt)
+			.map((i) => ({ kind: 'item' as const, row: { ...i, deletedAt: now, updatedAt: now } }))
 	]);
 }
 
@@ -47,15 +49,19 @@ export async function reorderCategories(idsInOrder: string[]) {
 	await enqueue(
 		rows
 			.filter((r): r is Category => !!r)
-			.map((r) => ({ kind: 'category' as const, row: { ...r, sort: idsInOrder.indexOf(r.id), updatedAt: now } }))
+			.map((r) => ({
+				kind: 'category' as const,
+				row: { ...r, sort: idsInOrder.indexOf(r.id), updatedAt: now }
+			}))
 	);
 }
 
-export async function saveItem(i: Partial<Item> & { title: string; categoryId: string }): Promise<Item> {
+export async function saveItem(
+	i: Partial<Item> & { title: string; categoryId: string }
+): Promise<Item> {
 	const now = Date.now();
 	const existing = i.id ? await localDb().items.get(i.id) : undefined;
 	const row: Item = {
-		id: i.id ?? newId(),
 		catalogEntryId: null,
 		status: 'want',
 		recommendedBy: null,
@@ -68,6 +74,7 @@ export async function saveItem(i: Partial<Item> & { title: string; categoryId: s
 		deletedAt: null,
 		...existing,
 		...i,
+		id: i.id ?? newId(),
 		updatedAt: now
 	};
 	row.tags = [...new Set(row.tags.map((t) => t.trim().toLowerCase()).filter(Boolean))];
@@ -91,7 +98,6 @@ export async function saveLogEntry(l: Partial<LogEntry> & { itemId: string }): P
 	const now = Date.now();
 	const existing = l.id ? await localDb().logEntries.get(l.id) : undefined;
 	const row: LogEntry = {
-		id: l.id ?? newId(),
 		date: today(),
 		rating: null,
 		note: null,
@@ -99,6 +105,7 @@ export async function saveLogEntry(l: Partial<LogEntry> & { itemId: string }): P
 		deletedAt: null,
 		...existing,
 		...l,
+		id: l.id ?? newId(),
 		updatedAt: now
 	};
 	await enqueue([{ kind: 'logEntry', row }]);

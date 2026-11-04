@@ -1,4 +1,11 @@
-import { sqliteTable, text, integer, primaryKey, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import {
+	sqliteTable,
+	text,
+	integer,
+	primaryKey,
+	index,
+	uniqueIndex
+} from 'drizzle-orm/sqlite-core';
 import type { FieldDef } from '../../shared/types';
 
 // ---------- Better Auth tables (names/columns follow Better Auth's core schema) ----------
@@ -150,8 +157,5 @@ export const logEntries = sqliteTable(
 		deletedAt: integer('deleted_at'),
 		serverUpdatedAt: integer('server_updated_at').notNull()
 	},
-	(t) => [
-		index('log_user_sync').on(t.userId, t.serverUpdatedAt),
-		index('log_item').on(t.itemId)
-	]
+	(t) => [index('log_user_sync').on(t.userId, t.serverUpdatedAt), index('log_item').on(t.itemId)]
 );

@@ -8,6 +8,10 @@ export async function sendMail(to: string, subject: string, text: string) {
 		const t = nodemailer.createTransport(env.smtpUrl);
 		await t.sendMail({ from: env.smtpFrom || undefined, to, subject, text });
 	} catch (err) {
-		console.warn('[mail] could not send email (is nodemailer installed?)', err, { to, subject, text });
+		console.warn('[mail] could not send email (is nodemailer installed?)', err, {
+			to,
+			subject,
+			text
+		});
 	}
 }

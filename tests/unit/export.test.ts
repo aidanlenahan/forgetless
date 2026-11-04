@@ -1,6 +1,18 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { applyMutations, pull, wipeUserData, searchItems, upsertCatalogEntries } from '../../src/lib/server/repo';
-import { buildExport, importExport, toCsv, csvField, ImportError } from '../../src/lib/server/export';
+import {
+	applyMutations,
+	pull,
+	wipeUserData,
+	searchItems,
+	upsertCatalogEntries
+} from '../../src/lib/server/repo';
+import {
+	buildExport,
+	importExport,
+	toCsv,
+	csvField,
+	ImportError
+} from '../../src/lib/server/export';
 import type { DB } from '../../src/lib/server/db';
 import type { ExportFile } from '../../src/lib/shared/types';
 import { makeDb, addUser, cat, item, log } from './helpers';
@@ -36,7 +48,13 @@ function seed() {
 		]
 	});
 	const gone = cat({ name: 'Deleted cat', deletedAt: 10 });
-	const a = item(watch.id, { title: 'Arrival', catalogEntryId: entry.id, recommendedBy: 'Sam', tags: ['sci-fi', 'imax'], status: 'done' });
+	const a = item(watch.id, {
+		title: 'Arrival',
+		catalogEntryId: entry.id,
+		recommendedBy: 'Sam',
+		tags: ['sci-fi', 'imax'],
+		status: 'done'
+	});
 	const b = item(eat.id, {
 		title: 'Lucali, "the" pizza',
 		why: 'line 1\nline 2',
@@ -94,7 +112,9 @@ describe('export → wipe → import round-trip', () => {
 		expect(buildExport(u, db).items).toHaveLength(0);
 
 		const res = importExport(u, json, 'replace', db);
-		expect(res.applied).toBe(before.categories.length + before.items.length + before.logEntries.length);
+		expect(res.applied).toBe(
+			before.categories.length + before.items.length + before.logEntries.length
+		);
 		const after = buildExport(u, db);
 		expect(strip(after)).toEqual(strip(before));
 		// FTS index rebuilt too
@@ -112,7 +132,9 @@ describe('export → wipe → import round-trip', () => {
 		expect(after.items).toEqual(before.items);
 		expect(after.logEntries).toEqual(before.logEntries);
 		// new shared catalog rows are stored stale (fetchedAt=0) so providers refresh them
-		expect(after.catalogEntries).toEqual(before.catalogEntries.map((c) => ({ ...c, fetchedAt: 0 })));
+		expect(after.catalogEntries).toEqual(
+			before.catalogEntries.map((c) => ({ ...c, fetchedAt: 0 }))
+		);
 	});
 
 	it('replace removes rows not in the file', () => {
@@ -127,7 +149,16 @@ describe('export → wipe → import round-trip', () => {
 	it('merge keeps newer local rows and adds missing ones', () => {
 		const s = seed();
 		const file = buildExport(u, db);
-		applyMutations(u, [{ kind: 'item', row: { ...s.a, title: 'Arrival (edited)', updatedAt: s.a.updatedAt + 10_000 } }], db);
+		applyMutations(
+			u,
+			[
+				{
+					kind: 'item',
+					row: { ...s.a, title: 'Arrival (edited)', updatedAt: s.a.updatedAt + 10_000 }
+				}
+			],
+			db
+		);
 		const extra = item(s.watch.id, { title: 'Local only' });
 		applyMutations(u, [{ kind: 'item', row: extra }], db);
 		const res = importExport(u, file, 'merge', db);
@@ -156,12 +187,22 @@ describe('export → wipe → import round-trip', () => {
 
 	it('validates format and version', () => {
 		expect(() => importExport(u, { format: 'nope' }, 'merge', db)).toThrow(ImportError);
-		expect(() => importExport(u, { format: 'forgetless-export', version: 2, categories: [], items: [], logEntries: [] }, 'merge', db)).toThrow(
-			/version/
-		);
-		expect(() => importExport(u, { format: 'forgetless-export', version: 1, categories: {}, items: [], logEntries: [] }, 'merge', db)).toThrow(
-			/categories/
-		);
+		expect(() =>
+			importExport(
+				u,
+				{ format: 'forgetless-export', version: 2, categories: [], items: [], logEntries: [] },
+				'merge',
+				db
+			)
+		).toThrow(/version/);
+		expect(() =>
+			importExport(
+				u,
+				{ format: 'forgetless-export', version: 1, categories: {}, items: [], logEntries: [] },
+				'merge',
+				db
+			)
+		).toThrow(/categories/);
 		expect(() => importExport(u, null, 'merge', db)).toThrow(ImportError);
 	});
 
@@ -194,7 +235,9 @@ describe('CSV', () => {
 		const eat = f.categories.find((c) => c.id === s.eat.id)!;
 		const csv = toCsv(eat, f.items, f.logEntries);
 		const lines = csv.split('\r\n');
-		expect(lines[0]).toBe('title,status,recommended_by,source,why,tags,created_at,last_logged,latest_rating,Neighborhood,Price');
+		expect(lines[0]).toBe(
+			'title,status,recommended_by,source,why,tags,created_at,last_logged,latest_rating,Neighborhood,Price'
+		);
 		expect(lines[1]).toBe(
 			`"Lucali, ""the"" pizza",want,,,"line 1\nline 2",,${new Date(s.b.createdAt).toISOString()},,,Carroll Gardens,$$`
 		);
@@ -202,6 +245,8 @@ describe('CSV', () => {
 
 		const watch = f.categories.find((c) => c.id === s.watch.id)!;
 		const w = toCsv(watch, f.items, f.logEntries).split('\r\n');
-		expect(w[1]).toBe(`Arrival,done,Sam,,,imax;sci-fi,${new Date(s.a.createdAt).toISOString()},2026-03-01,4.5`);
+		expect(w[1]).toBe(
+			`Arrival,done,Sam,,,imax;sci-fi,${new Date(s.a.createdAt).toISOString()},2026-03-01,4.5`
+		);
 	});
 });

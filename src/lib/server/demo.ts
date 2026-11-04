@@ -13,12 +13,20 @@ export function purgeExpiredGuests(db: DB = getDb(), now = Date.now()): number {
 }
 
 /** Flags a user as a guest that purgeExpiredGuests removes after `ttlMs` (sessions go with it via cascade). */
-export function markGuest(userId: string, db: DB = getDb(), now = Date.now(), ttlMs = env.guestTtlMs) {
-	db.sqlite.prepare('UPDATE user SET is_guest = 1, guest_expires_at = ? WHERE id = ?').run(now + ttlMs, userId);
+export function markGuest(
+	userId: string,
+	db: DB = getDb(),
+	now = Date.now(),
+	ttlMs = env.guestTtlMs
+) {
+	db.sqlite
+		.prepare('UPDATE user SET is_guest = 1, guest_expires_at = ? WHERE id = ?')
+		.run(now + ttlMs, userId);
 }
 
 export function isGuestUser(userId: string, db: DB = getDb()): boolean {
-	const r = db.sqlite.prepare('SELECT is_guest FROM user WHERE id = ?').get(userId) as { is_guest: number } | undefined;
+	const r = db.sqlite.prepare('SELECT is_guest FROM user WHERE id = ?').get(userId) as
+		{ is_guest: number } | undefined;
 	return !!r?.is_guest;
 }
 
@@ -44,7 +52,8 @@ export function itemCountAfter(userId: string, mutations: Mutation[], db: DB = g
 const DAY = 24 * 60 * 60 * 1000;
 const rnd = () => Math.floor(Math.random() * 0x100000000);
 /** UUIDv7 whose timestamp matches `ts`, so ids sort like the (backdated) createdAt. */
-const idAt = (ts: number) => UUID.fromFieldsV7(ts, rnd() & 0xfff, rnd() & 0x3fffffff, rnd()).toString();
+const idAt = (ts: number) =>
+	UUID.fromFieldsV7(ts, rnd() & 0xfff, rnd() & 0x3fffffff, rnd()).toString();
 const isoDate = (ts: number) => new Date(ts).toISOString().slice(0, 10);
 
 /** Real TMDB metadata, hardcoded so the demo looks right without an API key. */
@@ -158,28 +167,234 @@ interface DemoItem {
 }
 
 export const DEMO_ITEMS: DemoItem[] = [
-	{ cat: 'Watch', title: 'Severance', tmdb: 'tv:95396', daysAgo: 230, status: 'done', by: 'Sam', source: 'Group chat', why: 'Sam would not stop talking about the elevator scenes.', tags: ['sci-fi', 'binge'], logs: [{ daysAgo: 200, rating: 9, note: 'Season 1 finale!!' }, { daysAgo: 40, rating: 10, note: 'Rewatched before season 2. Even better.' }] },
-	{ cat: 'Watch', title: 'Past Lives', tmdb: 'movie:666277', daysAgo: 180, status: 'done', by: 'Priya', why: 'Bring tissues, apparently.', tags: ['date night'], logs: [{ daysAgo: 150, rating: 9, note: 'Quietly devastating.' }] },
-	{ cat: 'Watch', title: 'The Bear', tmdb: 'tv:136315', daysAgo: 120, status: 'in_progress', by: 'Mom', why: 'Mom says it stresses her out in a good way.', tags: ['comedy', 'food'], logs: [{ daysAgo: 60, rating: 8, note: 'Finished S1. "Yes, chef."' }] },
-	{ cat: 'Watch', title: 'Arrival', tmdb: 'movie:329865', daysAgo: 210, status: 'want', by: 'Sam', source: 'Blank Check podcast', tags: ['sci-fi'] },
-	{ cat: 'Watch', title: 'Dune: Part Two', tmdb: 'movie:693134', daysAgo: 95, status: 'want', by: 'Priya', why: 'See it on the biggest screen possible.', tags: ['sci-fi', 'imax'] },
-	{ cat: 'Watch', title: 'Shōgun', tmdb: 'tv:126308', daysAgo: 25, status: 'want', source: 'The Rewatchables podcast', tags: ['drama'] },
-	{ cat: 'Read', title: 'Project Hail Mary', daysAgo: 240, status: 'done', by: 'Sam', fields: { author: 'Andy Weir' }, tags: ['sci-fi'], logs: [{ daysAgo: 190, rating: 10, note: 'Rocky is the best character ever written.' }] },
-	{ cat: 'Read', title: 'Tomorrow, and Tomorrow, and Tomorrow', daysAgo: 160, status: 'in_progress', by: 'Priya', fields: { author: 'Gabrielle Zevin' }, why: 'About friends who make video games.', tags: ['fiction'] },
-	{ cat: 'Read', title: 'The Anthropocene Reviewed', daysAgo: 70, status: 'want', source: 'Heard on a podcast', fields: { author: 'John Green' }, tags: ['essays'] },
-	{ cat: 'Read', title: 'Piranesi', daysAgo: 12, status: 'want', by: 'Mom', fields: { author: 'Susanna Clarke' }, tags: ['fantasy', 'short'] },
-	{ cat: 'Eat', title: 'Lucali', daysAgo: 200, status: 'done', by: 'Priya', fields: { neighborhood: 'Carroll Gardens', price: '$$' }, why: 'Best pizza in Brooklyn, get there at 5pm.', tags: ['pizza'], logs: [{ daysAgo: 170, rating: 9, note: 'Waited 2 hours. Worth it.' }, { daysAgo: 30, rating: 8, note: 'Took Mom for her birthday.' }] },
-	{ cat: 'Eat', title: 'Xi’an Famous Foods', daysAgo: 140, status: 'done', by: 'Sam', fields: { neighborhood: 'Chinatown', price: '$' }, tags: ['noodles', 'cheap eats'], logs: [{ daysAgo: 135, rating: 8, note: 'Spicy cumin lamb noodles. Yes.' }] },
-	{ cat: 'Eat', title: 'Dhamaka', daysAgo: 45, status: 'want', by: 'Priya', fields: { neighborhood: 'Lower East Side', price: '$$$' }, why: 'Order the goat neck.', tags: ['indian'] },
-	{ cat: 'Eat', title: 'Thai Diner', daysAgo: 8, status: 'want', source: 'Saw it on a walk', fields: { neighborhood: 'Nolita', price: '$$' }, tags: ['thai', 'brunch'] },
-	{ cat: 'Visit', title: 'Storm King Art Center', daysAgo: 220, status: 'done', by: 'Mom', fields: { location: 'New Windsor, NY' }, tags: ['day trip', 'outdoors'], logs: [{ daysAgo: 160, rating: 9, note: 'Go in October for the leaves.' }] },
-	{ cat: 'Visit', title: 'Little Island', daysAgo: 100, status: 'want', by: 'Sam', fields: { location: 'Hudson River Park' }, tags: ['outdoors'] },
-	{ cat: 'Visit', title: 'Kyoto', daysAgo: 55, status: 'want', by: 'Priya', fields: { location: 'Japan' }, why: 'Fushimi Inari at sunrise before the crowds.', tags: ['travel'] },
-	{ cat: 'Drink', title: 'Death & Co', daysAgo: 130, status: 'done', by: 'Sam', why: 'Classic cocktail bar.', tags: ['cocktails'], logs: [{ daysAgo: 90, rating: 7 }] },
-	{ cat: 'Drink', title: 'Hazy IPA from Other Half', daysAgo: 35, status: 'want', source: 'Brewery Instagram', tags: ['beer'] },
-	{ cat: 'Cook', title: 'Marcella Hazan’s tomato sauce', daysAgo: 190, status: 'done', by: 'Mom', fields: { recipe_url: 'https://cooking.nytimes.com/recipes/1015178-marcella-hazans-tomato-sauce' }, why: 'Three ingredients. Butter + onion.', tags: ['pasta', 'easy'], logs: [{ daysAgo: 185, rating: 10 }, { daysAgo: 100, rating: 9, note: 'Doubled it and froze half.' }, { daysAgo: 20, rating: 10 }] },
-	{ cat: 'Cook', title: 'Crispy smashed potatoes', daysAgo: 15, status: 'want', source: 'Serious Eats', tags: ['side', 'easy'] },
-	{ cat: 'Cook', title: 'Sourdough starter', daysAgo: 250, status: 'dropped', by: 'Priya', why: 'Too much commitment for now.', tags: ['baking'] }
+	{
+		cat: 'Watch',
+		title: 'Severance',
+		tmdb: 'tv:95396',
+		daysAgo: 230,
+		status: 'done',
+		by: 'Sam',
+		source: 'Group chat',
+		why: 'Sam would not stop talking about the elevator scenes.',
+		tags: ['sci-fi', 'binge'],
+		logs: [
+			{ daysAgo: 200, rating: 9, note: 'Season 1 finale!!' },
+			{ daysAgo: 40, rating: 10, note: 'Rewatched before season 2. Even better.' }
+		]
+	},
+	{
+		cat: 'Watch',
+		title: 'Past Lives',
+		tmdb: 'movie:666277',
+		daysAgo: 180,
+		status: 'done',
+		by: 'Priya',
+		why: 'Bring tissues, apparently.',
+		tags: ['date night'],
+		logs: [{ daysAgo: 150, rating: 9, note: 'Quietly devastating.' }]
+	},
+	{
+		cat: 'Watch',
+		title: 'The Bear',
+		tmdb: 'tv:136315',
+		daysAgo: 120,
+		status: 'in_progress',
+		by: 'Mom',
+		why: 'Mom says it stresses her out in a good way.',
+		tags: ['comedy', 'food'],
+		logs: [{ daysAgo: 60, rating: 8, note: 'Finished S1. "Yes, chef."' }]
+	},
+	{
+		cat: 'Watch',
+		title: 'Arrival',
+		tmdb: 'movie:329865',
+		daysAgo: 210,
+		status: 'want',
+		by: 'Sam',
+		source: 'Blank Check podcast',
+		tags: ['sci-fi']
+	},
+	{
+		cat: 'Watch',
+		title: 'Dune: Part Two',
+		tmdb: 'movie:693134',
+		daysAgo: 95,
+		status: 'want',
+		by: 'Priya',
+		why: 'See it on the biggest screen possible.',
+		tags: ['sci-fi', 'imax']
+	},
+	{
+		cat: 'Watch',
+		title: 'Shōgun',
+		tmdb: 'tv:126308',
+		daysAgo: 25,
+		status: 'want',
+		source: 'The Rewatchables podcast',
+		tags: ['drama']
+	},
+	{
+		cat: 'Read',
+		title: 'Project Hail Mary',
+		daysAgo: 240,
+		status: 'done',
+		by: 'Sam',
+		fields: { author: 'Andy Weir' },
+		tags: ['sci-fi'],
+		logs: [{ daysAgo: 190, rating: 10, note: 'Rocky is the best character ever written.' }]
+	},
+	{
+		cat: 'Read',
+		title: 'Tomorrow, and Tomorrow, and Tomorrow',
+		daysAgo: 160,
+		status: 'in_progress',
+		by: 'Priya',
+		fields: { author: 'Gabrielle Zevin' },
+		why: 'About friends who make video games.',
+		tags: ['fiction']
+	},
+	{
+		cat: 'Read',
+		title: 'The Anthropocene Reviewed',
+		daysAgo: 70,
+		status: 'want',
+		source: 'Heard on a podcast',
+		fields: { author: 'John Green' },
+		tags: ['essays']
+	},
+	{
+		cat: 'Read',
+		title: 'Piranesi',
+		daysAgo: 12,
+		status: 'want',
+		by: 'Mom',
+		fields: { author: 'Susanna Clarke' },
+		tags: ['fantasy', 'short']
+	},
+	{
+		cat: 'Eat',
+		title: 'Lucali',
+		daysAgo: 200,
+		status: 'done',
+		by: 'Priya',
+		fields: { neighborhood: 'Carroll Gardens', price: '$$' },
+		why: 'Best pizza in Brooklyn, get there at 5pm.',
+		tags: ['pizza'],
+		logs: [
+			{ daysAgo: 170, rating: 9, note: 'Waited 2 hours. Worth it.' },
+			{ daysAgo: 30, rating: 8, note: 'Took Mom for her birthday.' }
+		]
+	},
+	{
+		cat: 'Eat',
+		title: 'Xi’an Famous Foods',
+		daysAgo: 140,
+		status: 'done',
+		by: 'Sam',
+		fields: { neighborhood: 'Chinatown', price: '$' },
+		tags: ['noodles', 'cheap eats'],
+		logs: [{ daysAgo: 135, rating: 8, note: 'Spicy cumin lamb noodles. Yes.' }]
+	},
+	{
+		cat: 'Eat',
+		title: 'Dhamaka',
+		daysAgo: 45,
+		status: 'want',
+		by: 'Priya',
+		fields: { neighborhood: 'Lower East Side', price: '$$$' },
+		why: 'Order the goat neck.',
+		tags: ['indian']
+	},
+	{
+		cat: 'Eat',
+		title: 'Thai Diner',
+		daysAgo: 8,
+		status: 'want',
+		source: 'Saw it on a walk',
+		fields: { neighborhood: 'Nolita', price: '$$' },
+		tags: ['thai', 'brunch']
+	},
+	{
+		cat: 'Visit',
+		title: 'Storm King Art Center',
+		daysAgo: 220,
+		status: 'done',
+		by: 'Mom',
+		fields: { location: 'New Windsor, NY' },
+		tags: ['day trip', 'outdoors'],
+		logs: [{ daysAgo: 160, rating: 9, note: 'Go in October for the leaves.' }]
+	},
+	{
+		cat: 'Visit',
+		title: 'Little Island',
+		daysAgo: 100,
+		status: 'want',
+		by: 'Sam',
+		fields: { location: 'Hudson River Park' },
+		tags: ['outdoors']
+	},
+	{
+		cat: 'Visit',
+		title: 'Kyoto',
+		daysAgo: 55,
+		status: 'want',
+		by: 'Priya',
+		fields: { location: 'Japan' },
+		why: 'Fushimi Inari at sunrise before the crowds.',
+		tags: ['travel']
+	},
+	{
+		cat: 'Drink',
+		title: 'Death & Co',
+		daysAgo: 130,
+		status: 'done',
+		by: 'Sam',
+		why: 'Classic cocktail bar.',
+		tags: ['cocktails'],
+		logs: [{ daysAgo: 90, rating: 7 }]
+	},
+	{
+		cat: 'Drink',
+		title: 'Hazy IPA from Other Half',
+		daysAgo: 35,
+		status: 'want',
+		source: 'Brewery Instagram',
+		tags: ['beer']
+	},
+	{
+		cat: 'Cook',
+		title: 'Marcella Hazan’s tomato sauce',
+		daysAgo: 190,
+		status: 'done',
+		by: 'Mom',
+		fields: {
+			recipe_url: 'https://cooking.nytimes.com/recipes/1015178-marcella-hazans-tomato-sauce'
+		},
+		why: 'Three ingredients. Butter + onion.',
+		tags: ['pasta', 'easy'],
+		logs: [
+			{ daysAgo: 185, rating: 10 },
+			{ daysAgo: 100, rating: 9, note: 'Doubled it and froze half.' },
+			{ daysAgo: 20, rating: 10 }
+		]
+	},
+	{
+		cat: 'Cook',
+		title: 'Crispy smashed potatoes',
+		daysAgo: 15,
+		status: 'want',
+		source: 'Serious Eats',
+		tags: ['side', 'easy']
+	},
+	{
+		cat: 'Cook',
+		title: 'Sourdough starter',
+		daysAgo: 250,
+		status: 'dropped',
+		by: 'Priya',
+		why: 'Too much commitment for now.',
+		tags: ['baking']
+	}
 ];
 
 /** Seeds sample categories/items/log entries/catalog entries for a (guest) user. */
@@ -199,7 +414,10 @@ export function seedDemoData(userId: string, db: DB = getDb(), now = Date.now())
 			subtitle: `${c.kind === 'movie' ? 'Movie' : 'TV'} · ${c.year}`,
 			year: c.year,
 			imageUrl: `https://image.tmdb.org/t/p/w342${c.poster}`,
-			data: { ...c.data, tmdb_url: `https://www.themoviedb.org/${c.kind}/${c.externalId.split(':')[1]}` },
+			data: {
+				...c.data,
+				tmdb_url: `https://www.themoviedb.org/${c.kind}/${c.externalId.split(':')[1]}`
+			},
 			fetchedAt: now
 		})),
 		db

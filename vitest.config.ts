@@ -5,7 +5,9 @@ import { fileURLToPath } from 'node:url';
 // the `#lib` alias is mapped (package.json "imports" also covers it) for any route-level code.
 export default defineConfig({
 	resolve: {
-		alias: [{ find: /^#lib\/(.*)$/, replacement: fileURLToPath(new URL('./src/lib/$1', import.meta.url)) }]
+		alias: [
+			{ find: /^#lib\/(.*)$/, replacement: fileURLToPath(new URL('./src/lib/$1', import.meta.url)) }
+		]
 	},
 	test: {
 		environment: 'node',

@@ -22,7 +22,7 @@ describe.skipIf(!hasPick)('pick for me', async () => {
 	it('maps the random draw over cumulative weights', () => {
 		expect(pickWeighted(items, { now, random: () => 0 })?.id).toBe('new');
 		expect(pickWeighted(items, { now, random: () => 0.0099 })?.id).toBe('new');
-		expect(pickWeighted(items, { now, random: () => 0.0100 })?.id).toBe('old');
+		expect(pickWeighted(items, { now, random: () => 0.01 })?.id).toBe('old');
 		expect(pickWeighted(items, { now, random: () => 0.999 })?.id).toBe('old');
 		expect(pickWeighted([], { now })).toBeNull();
 	});

@@ -14,7 +14,10 @@ export const GET: RequestHandler = async (event) => {
 	const kind = event.url.searchParams.get('kind') || undefined;
 	if (kind && !provider.kinds.includes(kind)) error(400, `Unknown kind for ${provider.id}`);
 
-	const limited = rateLimit([limits.providerSearchUser, user.id], [limits.providerSearchIp, clientIp(event)]);
+	const limited = rateLimit(
+		[limits.providerSearchUser, user.id],
+		[limits.providerSearchIp, clientIp(event)]
+	);
 	if (limited) return limited;
 	try {
 		const hits = await cachedSearch(provider, q, { kind });

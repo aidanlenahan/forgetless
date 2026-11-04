@@ -1,5 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { purgeExpiredGuests, seedDemoData, markGuest, itemCountAfter, DEMO_ITEMS } from '../../src/lib/server/demo';
+import {
+	purgeExpiredGuests,
+	seedDemoData,
+	markGuest,
+	itemCountAfter,
+	DEMO_ITEMS
+} from '../../src/lib/server/demo';
 import { applyMutations, pull, searchItems } from '../../src/lib/server/repo';
 import { seedDefaultCategories } from '../../src/lib/server/seed';
 import type { DB } from '../../src/lib/server/db';
@@ -10,7 +16,8 @@ beforeEach(() => {
 	db = makeDb();
 });
 
-const count = (sql: string, ...args: unknown[]) => (db.sqlite.prepare(sql).get(...args) as { n: number }).n;
+const count = (sql: string, ...args: unknown[]) =>
+	(db.sqlite.prepare(sql).get(...args) as { n: number }).n;
 
 describe('purgeExpiredGuests', () => {
 	it('deletes expired guests and all their data, keeps others', () => {
@@ -21,10 +28,20 @@ describe('purgeExpiredGuests', () => {
 		for (const u of [expired, fresh, regular]) {
 			const c = cat();
 			const i = item(c.id, { title: 'Severance', tags: ['x'] });
-			applyMutations(u, [{ kind: 'category', row: c }, { kind: 'item', row: i }, { kind: 'logEntry', row: log(i.id) }], db);
+			applyMutations(
+				u,
+				[
+					{ kind: 'category', row: c },
+					{ kind: 'item', row: i },
+					{ kind: 'logEntry', row: log(i.id) }
+				],
+				db
+			);
 		}
 		db.sqlite
-			.prepare("INSERT INTO session (id, expires_at, token, created_at, updated_at, user_id) VALUES ('s1', ?, 't1', ?, ?, ?)")
+			.prepare(
+				"INSERT INTO session (id, expires_at, token, created_at, updated_at, user_id) VALUES ('s1', ?, 't1', ?, ?, ?)"
+			)
 			.run(now + 1e6, now, now, expired);
 
 		expect(purgeExpiredGuests(db, now)).toBe(1);
@@ -48,13 +65,19 @@ describe('seedDemoData', () => {
 		expect(p.items).toHaveLength(DEMO_ITEMS.length);
 		expect(p.items.length).toBeGreaterThanOrEqual(20);
 		expect(res.skipped).toBe(0);
-		expect(new Set(p.items.map((i) => p.categories.find((c) => c.id === i.categoryId)?.name)).size).toBe(6);
+		expect(
+			new Set(p.items.map((i) => p.categories.find((c) => c.id === i.categoryId)?.name)).size
+		).toBe(6);
 		expect(p.logEntries.length).toBeGreaterThan(8);
 		expect(p.catalogEntries.length).toBeGreaterThanOrEqual(4);
-		expect(p.catalogEntries.every((c) => c.imageUrl?.startsWith('https://image.tmdb.org/'))).toBe(true);
+		expect(p.catalogEntries.every((c) => c.imageUrl?.startsWith('https://image.tmdb.org/'))).toBe(
+			true
+		);
 		const oldest = Math.min(...p.items.map((i) => i.createdAt));
 		expect(Date.now() - oldest).toBeGreaterThan(200 * 86_400_000);
-		expect(db.sqlite.prepare('SELECT is_guest, guest_expires_at FROM user WHERE id = ?').get(u)).toEqual({
+		expect(
+			db.sqlite.prepare('SELECT is_guest, guest_expires_at FROM user WHERE id = ?').get(u)
+		).toEqual({
 			is_guest: 1,
 			guest_expires_at: 6000
 		});
@@ -70,7 +93,14 @@ describe('itemCountAfter (guest cap)', () => {
 		const u = addUser(db);
 		const c = cat();
 		const a = item(c.id);
-		applyMutations(u, [{ kind: 'category', row: c }, { kind: 'item', row: a }], db);
+		applyMutations(
+			u,
+			[
+				{ kind: 'category', row: c },
+				{ kind: 'item', row: a }
+			],
+			db
+		);
 		const b = item(c.id);
 		expect(
 			itemCountAfter(

@@ -2,7 +2,13 @@
 import { localDb } from './db';
 import type { Mutation, SyncPullResponse, SyncPushResponse } from '../shared/types';
 
-type SyncState = { online: boolean; syncing: boolean; pending: number; lastSyncedAt: number | null; error: string | null };
+type SyncState = {
+	online: boolean;
+	syncing: boolean;
+	pending: number;
+	lastSyncedAt: number | null;
+	error: string | null;
+};
 const listeners = new Set<(s: SyncState) => void>();
 let state: SyncState = {
 	online: typeof navigator === 'undefined' ? true : navigator.onLine,
@@ -80,24 +86,30 @@ async function pull() {
 	const data = (await res.json()) as SyncPullResponse;
 	// Don't overwrite rows that still have local pending mutations (they're newer).
 	const pendingIds = new Set((await db.outbox.toArray()).map((o) => o.mutation.row.id));
-	await db.transaction('rw', [db.categories, db.items, db.logEntries, db.catalogEntries, db.meta], async () => {
-		await db.categories.bulkPut(data.categories.filter((r) => !pendingIds.has(r.id)));
-		await db.items.bulkPut(data.items.filter((r) => !pendingIds.has(r.id)));
-		await db.logEntries.bulkPut(data.logEntries.filter((r) => !pendingIds.has(r.id)));
-		await db.catalogEntries.bulkPut(data.catalogEntries);
-		await db.meta.put({ key: 'cursor', value: data.cursor });
-	});
+	await db.transaction(
+		'rw',
+		[db.categories, db.items, db.logEntries, db.catalogEntries, db.meta],
+		async () => {
+			await db.categories.bulkPut(data.categories.filter((r) => !pendingIds.has(r.id)));
+			await db.items.bulkPut(data.items.filter((r) => !pendingIds.has(r.id)));
+			await db.logEntries.bulkPut(data.logEntries.filter((r) => !pendingIds.has(r.id)));
+			await db.catalogEntries.bulkPut(data.catalogEntries);
+			await db.meta.put({ key: 'cursor', value: data.cursor });
+		}
+	);
 }
 
 let running: Promise<void> | null = null;
 /** Flush outbox then pull changes. Safe to call often; concurrent calls coalesce. */
 export function syncNow(opts: { pullAfter?: boolean } = {}): Promise<void> {
 	if (running) return running;
+	// Checked before creating `running`: an early return inside the async IIFE would run synchronously,
+	// before `running` is assigned, leaving a stale resolved promise that blocks every later sync.
+	if (typeof navigator !== 'undefined' && !navigator.onLine) {
+		set({ online: false });
+		return Promise.resolve();
+	}
 	running = (async () => {
-		if (typeof navigator !== 'undefined' && !navigator.onLine) {
-			set({ online: false });
-			return;
-		}
 		set({ syncing: true });
 		try {
 			await flushOutbox();

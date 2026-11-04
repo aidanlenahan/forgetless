@@ -29,12 +29,17 @@ export class TokenBucket {
 		b.at = t;
 		this.buckets.delete(key); // keep Map order ~ recency so eviction drops idle keys
 		this.buckets.set(key, b);
-		if (this.buckets.size > this.maxKeys) this.buckets.delete(this.buckets.keys().next().value as string);
+		if (this.buckets.size > this.maxKeys)
+			this.buckets.delete(this.buckets.keys().next().value as string);
 		if (b.tokens >= cost) {
 			b.tokens -= cost;
 			return { ok: true, remaining: Math.floor(b.tokens), retryAfter: 0 };
 		}
-		return { ok: false, remaining: 0, retryAfter: Math.ceil((cost - b.tokens) / this.refillPerMs / 1000) };
+		return {
+			ok: false,
+			remaining: 0,
+			retryAfter: Math.ceil((cost - b.tokens) / this.refillPerMs / 1000)
+		};
 	}
 
 	reset() {
@@ -71,10 +76,13 @@ export function rateLimit(...checks: [TokenBucket, string][]): Response | null {
 	for (const [bucket, key] of checks) {
 		const r = bucket.take(key);
 		if (!r.ok) {
-			return new Response(JSON.stringify({ message: 'Too many requests, slow down.', retryAfter: r.retryAfter }), {
-				status: 429,
-				headers: { 'content-type': 'application/json', 'retry-after': String(r.retryAfter) }
-			});
+			return new Response(
+				JSON.stringify({ message: 'Too many requests, slow down.', retryAfter: r.retryAfter }),
+				{
+					status: 429,
+					headers: { 'content-type': 'application/json', 'retry-after': String(r.retryAfter) }
+				}
+			);
 		}
 	}
 	return null;

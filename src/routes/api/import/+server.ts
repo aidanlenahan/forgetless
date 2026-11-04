@@ -1,7 +1,12 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { requireUser } from '#lib/server/guard.ts';
-import { importExport, ImportError, IMPORT_MAX_BYTES, type ImportMode } from '#lib/server/export.ts';
+import {
+	importExport,
+	ImportError,
+	IMPORT_MAX_BYTES,
+	type ImportMode
+} from '#lib/server/export.ts';
 import { MutationError } from '#lib/server/repo.ts';
 import { isGuestUser } from '#lib/server/demo.ts';
 import { env } from '#lib/server/env.ts';
@@ -33,7 +38,9 @@ export const POST: RequestHandler = async (event) => {
 	}
 	const guest = user.isGuest || isGuestUser(user.id);
 	try {
-		return json(importExport(user.id, body, mode, undefined, guest ? { itemCap: env.guestItemCap } : {}));
+		return json(
+			importExport(user.id, body, mode, undefined, guest ? { itemCap: env.guestItemCap } : {})
+		);
 	} catch (e) {
 		if (e instanceof ImportError) error(e.status, e.message);
 		if (e instanceof MutationError) error(400, `Invalid row: ${e.message}`);

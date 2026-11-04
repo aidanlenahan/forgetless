@@ -14,7 +14,10 @@ export { ProviderError } from './types';
 
 export const DETAILS_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
-const g = globalThis as unknown as { __appProviders?: Map<string, Provider>; __appSearchCache?: LruCache<CatalogHit[]> };
+const g = globalThis as unknown as {
+	__appProviders?: Map<string, Provider>;
+	__appSearchCache?: LruCache<CatalogHit[]>;
+};
 
 /** Enabled providers only (a provider without its API key is absent). */
 export function getProviders(): Map<string, Provider> {
@@ -40,7 +43,11 @@ function searchCache() {
 	return (g.__appSearchCache ??= new LruCache<CatalogHit[]>(500, 10 * 60 * 1000));
 }
 
-export async function cachedSearch(provider: Provider, q: string, opts: SearchOpts = {}): Promise<CatalogHit[]> {
+export async function cachedSearch(
+	provider: Provider,
+	q: string,
+	opts: SearchOpts = {}
+): Promise<CatalogHit[]> {
 	const norm = q.trim().toLowerCase().replace(/\s+/g, ' ');
 	const key = `${provider.id}|${opts.kind ?? ''}|${norm}`;
 	const cache = searchCache();
@@ -60,12 +67,19 @@ export async function selectEntry(
 	now = Date.now()
 ): Promise<CatalogEntry> {
 	// Normalise via the provider's own id format when it can (e.g. "550"+"movie" -> "movie:550").
-	const candidates = [externalId, kind ? `${kind}:${externalId}` : null].filter((x): x is string => !!x);
+	const candidates = [externalId, kind ? `${kind}:${externalId}` : null].filter(
+		(x): x is string => !!x
+	);
 	for (const ext of candidates) {
 		const row = db
 			.select()
 			.from(schema.catalogEntries)
-			.where(and(eq(schema.catalogEntries.source, provider.id), eq(schema.catalogEntries.externalId, ext)))
+			.where(
+				and(
+					eq(schema.catalogEntries.source, provider.id),
+					eq(schema.catalogEntries.externalId, ext)
+				)
+			)
 			.get();
 		if (row && now - row.fetchedAt < DETAILS_TTL_MS) return toCatalogEntry(row);
 	}

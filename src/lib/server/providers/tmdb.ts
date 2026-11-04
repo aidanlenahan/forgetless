@@ -2,7 +2,13 @@
 // External ids are "<kind>:<tmdb id>" (e.g. "movie:550", "tv:1399") because TMDB movie and TV ids overlap
 // and catalog_entries is UNIQUE(source, external_id).
 import type { CatalogHit } from '../../shared/types';
-import { ProviderError, type FetchLike, type Provider, type ProviderEntry, type SearchOpts } from './types';
+import {
+	ProviderError,
+	type FetchLike,
+	type Provider,
+	type ProviderEntry,
+	type SearchOpts
+} from './types';
 
 const API = 'https://api.themoviedb.org/3';
 const IMG = 'https://image.tmdb.org/t/p';
@@ -29,7 +35,8 @@ interface TmdbResult {
 	tagline?: string | null;
 }
 
-const isKind = (k: unknown): k is Kind => typeof k === 'string' && (KINDS as readonly string[]).includes(k);
+const isKind = (k: unknown): k is Kind =>
+	typeof k === 'string' && (KINDS as readonly string[]).includes(k);
 
 export function parseYear(date: string | undefined | null): number | null {
 	const m = /^(\d{4})/.exec(date ?? '');
@@ -88,8 +95,15 @@ export function mapDetails(r: TmdbResult, kind: Kind, now = Date.now()): Provide
 	};
 }
 
-export function createTmdbProvider(apiKey: string, fetchImpl: FetchLike = (u, i) => fetch(u, i)): Provider {
-	async function get<T>(path: string, params: Record<string, string>, signal?: AbortSignal): Promise<T> {
+export function createTmdbProvider(
+	apiKey: string,
+	fetchImpl: FetchLike = (u, i) => fetch(u, i)
+): Provider {
+	async function get<T>(
+		path: string,
+		params: Record<string, string>,
+		signal?: AbortSignal
+	): Promise<T> {
 		const url = `${API}${path}?${new URLSearchParams({ language: 'en-US', ...params })}`;
 		let res: Response;
 		try {

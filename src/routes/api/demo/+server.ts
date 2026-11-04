@@ -6,7 +6,9 @@ import { markGuest, purgeExpiredGuests, seedDemoData } from '#lib/server/demo.ts
 import { limits, rateLimit, clientIp } from '#lib/server/ratelimit.ts';
 
 const randomHex = (bytes: number) =>
-	Array.from(crypto.getRandomValues(new Uint8Array(bytes)), (b) => b.toString(16).padStart(2, '0')).join('');
+	Array.from(crypto.getRandomValues(new Uint8Array(bytes)), (b) =>
+		b.toString(16).padStart(2, '0')
+	).join('');
 
 /**
  * POST /api/demo → creates a guest account (wiped after 24 h), seeds sample data and signs it in
