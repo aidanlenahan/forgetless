@@ -40,7 +40,9 @@
 	async function enter() {
 		await initSession();
 		if (session.status === 'signedIn') await goto(next, { replace: true });
-		else error = "You're signed in, but this browser didn't keep the session. Check that cookies are allowed.";
+		else
+			error =
+				"You're signed in, but this browser didn't keep the session. Check that cookies are allowed.";
 	}
 
 	async function submit(e: SubmitEvent) {
@@ -117,6 +119,7 @@
 		}
 	}
 </script>
+
 {#snippet signin()}
 	{#if oauthError}<p class="err" role="alert">
 			Sign-in didn't go through ({oauthError}). Try again.
@@ -192,7 +195,12 @@
 		<div class="or"><span>or</span></div>
 		<div class="stack social">
 			{#if cfg.oauth.google}
-				<button type="button" class="btn lg block" onclick={() => social('google')} disabled={!!busy}>
+				<button
+					type="button"
+					class="btn lg block"
+					onclick={() => social('google')}
+					disabled={!!busy}
+				>
 					<svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"
 						><path
 							fill="#FFC107"
@@ -212,7 +220,12 @@
 				</button>
 			{/if}
 			{#if cfg.oauth.github}
-				<button type="button" class="btn lg block" onclick={() => social('github')} disabled={!!busy}>
+				<button
+					type="button"
+					class="btn lg block"
+					onclick={() => social('github')}
+					disabled={!!busy}
+				>
 					<svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true" fill="currentColor"
 						><path
 							d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"
@@ -226,7 +239,8 @@
 
 	<p class="switch small muted">
 		{#if mode === 'login'}
-			{#if cfg.allowSignup}New here? <a href="/signup" data-testid="signup-link">Create an account</a
+			{#if cfg.allowSignup}New here? <a href="/signup" data-testid="signup-link"
+					>Create an account</a
 				>{/if}
 		{:else}
 			Have an account? <a href="/login">Sign in</a>
@@ -244,8 +258,8 @@
 		<section class="pitch" aria-labelledby="pitch-h">
 			<h1 id="pitch-h">Keep track of what people tell you to try.</h1>
 			<p class="lede">
-				Save a show, a book, a restaurant or a place in a few seconds, along with who recommended
-				it and why. When you have a free evening, {APP_NAME} picks one for you.
+				Save a show, a book, a restaurant or a place in a few seconds, along with who recommended it
+				and why. When you have a free evening, {APP_NAME} picks one for you.
 			</p>
 			{#if cfg.demoEnabled}
 				<div class="cta">
@@ -275,13 +289,14 @@
 					<span class="sheet-count">4 items</span>
 				</div>
 				{#each SAMPLE as it (it.title)}
-					<div class="srow" style="--tint-bg: var(--cat-{it.tint}-bg); --tint-ink: var(--cat-{it.tint}-ink);">
+					<div
+						class="srow"
+						style="--tint-bg: var(--cat-{it.tint}-bg); --tint-ink: var(--cat-{it.tint}-ink);"
+					>
 						<Poster icon={it.icon} title={it.title} width={40} />
 						<span class="sbody">
 							<span class="st">{it.title}</span>
-							<span class="sm"
-								>{it.meta} <span class="dotsep">·</span> <em>from {it.by}</em></span
-							>
+							<span class="sm">{it.meta} <span class="dotsep">·</span> <em>from {it.by}</em></span>
 						</span>
 						{#if it.status}<span class="pill in_progress">{it.status}</span>{/if}
 					</div>

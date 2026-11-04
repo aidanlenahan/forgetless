@@ -1,19 +1,21 @@
 # Forgetless
 
-One place to save every show, book, restaurant, and place you want to try, and remember who told you about it.
-Capture something in a couple of taps (with TMDB autocomplete for movies and TV), note who recommended it and
-why, log it when you've done it, and let "Pick for me" choose tonight's movie. Forgetless is an installable,
-offline-first PWA: your lists are readable without a connection, and anything you add offline syncs when you're
-back. It's self-hostable as a single Docker container with a single SQLite file. See [docs/PRD.md](docs/PRD.md)
-for the product plan.
+Save the shows, books, restaurants and places people tell you to try, and who told you about each one.
+Type a title and it's saved in a couple of seconds, with TMDB autocomplete for movies and TV. Add who
+recommended it and why, log it when you've watched, read or eaten it, and let "Pick for me" choose tonight's
+movie. Forgetless is an installable PWA that works offline: your lists stay readable without a connection, and
+anything you add offline syncs when you're back. You can host it yourself as one Docker container with one
+SQLite file. [docs/PRD.md](docs/PRD.md) has the product plan.
 
 ## Screenshots
 
-| Quick capture (TMDB) | Item detail | Demo on mobile | Pick for me |
+| Landing | Quick capture (TMDB) | Duplicate warning | Item detail |
 |---|---|---|---|
-| ![](docs/screenshots/capture-tmdb.png) | ![](docs/screenshots/detail.png) | ![](docs/screenshots/demo-mobile.png) | ![](docs/screenshots/pick-mobile.png) |
+| ![](docs/screenshots/landing.png) | ![](docs/screenshots/capture-tmdb.png) | ![](docs/screenshots/capture-dup.png) | ![](docs/screenshots/detail.png) |
 
-_Coming soon._
+| Demo on mobile | Pick for me | Poster grid, dark mode |
+|---|---|---|
+| ![](docs/screenshots/demo-mobile.png) | ![](docs/screenshots/pick-mobile.png) | ![](docs/screenshots/watch-dark.png) |
 
 ## Quick start (Docker)
 

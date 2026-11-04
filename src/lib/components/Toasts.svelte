@@ -1,23 +1,11 @@
 <script lang="ts">
-	import { fly, fade } from 'svelte/transition';
-	import { flip } from 'svelte/animate';
-	import { cubicOut } from 'svelte/easing';
 	import { toasts, dismissToast } from '#lib/client/ui.svelte.ts';
 	import Icon from './Icon.svelte';
-
-	const reduced =
-		typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 </script>
 
 <div class="toasts" aria-live="polite" aria-atomic="false">
 	{#each toasts as t (t.id)}
-		<div
-			class="toast {t.kind}"
-			role={t.kind === 'error' ? 'alert' : 'status'}
-			in:fly={{ y: reduced ? 0 : 16, duration: reduced ? 160 : 260, easing: cubicOut }}
-			out:fade={{ duration: 140 }}
-			animate:flip={{ duration: reduced ? 0 : 200 }}
-		>
+		<div class="toast {t.kind}" role={t.kind === 'error' ? 'alert' : 'status'}>
 			{#if t.kind === 'success'}<span class="ic ok"><Icon name="check" size={16} stroke={2} /></span
 				>{:else if t.kind === 'error'}<span class="ic"><Icon name="alert" size={16} /></span>{/if}
 			<span class="grow">{t.message}</span>
@@ -62,6 +50,18 @@
 		box-shadow: var(--shadow-lg);
 		font-size: var(--fs-sm);
 		font-weight: 500;
+		animation: toast-in 260ms var(--ease-out);
+	}
+	@keyframes toast-in {
+		from {
+			opacity: 0;
+			transform: translateY(16px);
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.toast {
+			animation: fade-in 160ms ease;
+		}
 	}
 	.toast.error {
 		background: var(--danger);

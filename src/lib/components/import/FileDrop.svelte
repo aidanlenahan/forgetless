@@ -27,6 +27,7 @@
 		if (files.length && !disabled) onfiles(multiple ? files : files.slice(0, 1));
 		if (input) input.value = '';
 	}
+	import Icon from '../Icon.svelte';
 </script>
 
 <label
@@ -55,6 +56,7 @@
 		data-testid={testid}
 		onchange={(e) => take(e.currentTarget.files)}
 	/>
+	<span class="ic" aria-hidden="true"><Icon name="upload" size={20} /></span>
 	<span class="t">{label}</span>
 	{#if hint}<span class="xs muted">{hint}</span>{/if}
 	<span class="btn sm" aria-hidden="true">Choose file{multiple ? 's' : ''}</span>
@@ -73,6 +75,23 @@
 		text-align: center;
 		cursor: pointer;
 	}
+	.drop {
+		transition:
+			border-color var(--dur-1) ease,
+			background-color var(--dur-1) ease;
+	}
+	.drop:hover:not(.disabled) {
+		border-color: var(--text-3);
+	}
+	.ic {
+		display: grid;
+		place-items: center;
+		width: 40px;
+		height: 40px;
+		border-radius: 50%;
+		background: var(--surface);
+		color: var(--accent);
+	}
 	.drop:focus-within {
 		box-shadow: var(--ring);
 	}
@@ -85,6 +104,8 @@
 		cursor: default;
 	}
 	.t {
-		font-weight: 600;
+		font-family: var(--font-serif);
+		font-size: var(--fs-md);
+		font-weight: 560;
 	}
 </style>

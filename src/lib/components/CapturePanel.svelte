@@ -349,7 +349,7 @@
 {:else if step === 'search'}
 	<div class="search">
 		<div class="inputrow">
-			<span class="icon" aria-hidden="true"
+			<span class="cap-icon" aria-hidden="true"
 				>{#if category}{category.icon}{:else}<Icon name="plus" size={20} />{/if}</span
 			>
 			<input
@@ -666,7 +666,7 @@
 		border-color: var(--accent);
 		box-shadow: var(--ring);
 	}
-	.inputrow .icon {
+	.inputrow .cap-icon {
 		display: grid;
 		place-items: center;
 		width: 28px;

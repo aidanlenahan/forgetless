@@ -150,10 +150,11 @@
 			? typeof entry.data?.tmdb_url === 'string'
 				? (entry.data.tmdb_url as string)
 				: // externalId is "movie:550" / "tv:95396"
-					`https://www.themoviedb.org/${entry.externalId.replace(':', '/')}`
+					`https://www.themoviedb.org/${entry.kind === 'tv' ? 'tv' : 'movie'}/${entry.externalId.split(':').pop()}`
 			: null
 	);
 </script>
+
 <svelte:head><title>{item?.title ?? 'Item'} · Forgetless</title></svelte:head>
 
 {#if !store.ready}
@@ -173,7 +174,7 @@
 			>
 		</nav>
 
-		<header class="hero" class:poster={!!entry?.imageUrl}>
+		<header class="hero" class:has-poster={!!entry?.imageUrl}>
 			<div class="art">
 				<Poster
 					src={entry?.imageUrl}
@@ -363,8 +364,7 @@
 								{#if l.rating != null}<StarRating value={l.rating} readonly size={14} />{/if}
 								<span class="grow"></span>
 								<span class="lact">
-									<button type="button" class="btn ghost sm" onclick={() => editLog(l)}
-										>Edit</button
+									<button type="button" class="btn ghost sm" onclick={() => editLog(l)}>Edit</button
 									>
 									<button
 										type="button"
@@ -782,7 +782,7 @@
 			width: 128px !important;
 			height: 192px !important;
 		}
-		.hero:not(.poster) .art :global(.poster) {
+		.hero:not(.has-poster) .art :global(.poster) {
 			width: 96px !important;
 			height: 144px !important;
 		}

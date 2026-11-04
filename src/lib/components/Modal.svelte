@@ -93,7 +93,12 @@
 			<div class="modal-grabber" aria-hidden="true"></div>
 			<header class="modal-head" class:sr-only={hideTitle}>
 				<h2 id={titleId}>{title}</h2>
-				<button type="button" class="btn ghost icon sm modal-close" aria-label="Close" onclick={onclose}>
+				<button
+					type="button"
+					class="btn ghost icon sm modal-close"
+					aria-label="Close"
+					onclick={onclose}
+				>
 					<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"
 						><path
 							d="M4 4l8 8M12 4l-8 8"

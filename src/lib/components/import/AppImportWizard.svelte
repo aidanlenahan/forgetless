@@ -208,7 +208,7 @@
 				aria-valuenow={job.done}
 				aria-label="Import progress"
 			>
-				<span style:width="{pct}%"></span>
+				<span style:transform="scaleX({pct / 100})"></span>
 			</div>
 			<p class="small muted num">
 				{job.done} of {job.total}{job.matched
@@ -254,7 +254,10 @@
 
 <style>
 	.wizard h3 {
-		font-size: var(--fs-md);
+		font-family: var(--font-serif);
+		font-size: var(--fs-lg);
+		font-weight: 560;
+		letter-spacing: -0.01em;
 	}
 	.samples,
 	.summary {
@@ -265,11 +268,28 @@
 		flex-direction: column;
 		gap: var(--s-1);
 	}
+	.samples {
+		gap: 0;
+	}
 	.samples li {
 		display: flex;
 		justify-content: space-between;
+		align-items: baseline;
 		gap: var(--s-3);
 		min-width: 0;
+		padding: var(--s-2) 0;
+		border-top: 1px solid var(--border);
+	}
+	.samples li:first-child {
+		border-top: none;
+	}
+	.samples li > span:first-child {
+		font-family: var(--font-serif);
+		font-size: var(--fs);
+		font-weight: 560;
+	}
+	.summary li {
+		font-variant-numeric: tabular-nums;
 	}
 	.dups {
 		border: none;
@@ -287,6 +307,7 @@
 		display: block;
 		height: 100%;
 		background: var(--accent);
-		transition: width 0.3s var(--ease);
+		transform-origin: left center;
+		transition: transform var(--dur-3) var(--ease-out);
 	}
 </style>

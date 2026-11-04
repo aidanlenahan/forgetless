@@ -2,3 +2,5 @@
 * text=auto
 *.sh text eol=lf
 Dockerfile text eol=lf
+# Test fixtures keep their exact bytes (CRLF/BOM cases are deliberate).
+tests/fixtures/** -text

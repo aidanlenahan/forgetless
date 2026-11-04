@@ -60,10 +60,7 @@
 					<div class="info">
 						<div class="cat small muted">
 							<span aria-hidden="true">{cat?.icon}</span>
-							{cat?.name}{#if entry}<span class="dot">·</span>{[
-									entry.year,
-									kindLabel(entry.kind)
-								]
+							{cat?.name}{#if entry}<span class="dot">·</span>{[entry.year, kindLabel(entry.kind)]
 									.filter(Boolean)
 									.join(' · ')}{/if}
 						</div>

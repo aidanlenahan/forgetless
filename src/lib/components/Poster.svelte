@@ -58,8 +58,10 @@
 		<span class="poster-initial" style:font-size="{Math.round(width * 0.62)}px" aria-hidden="true"
 			>{initial}</span
 		>
-		<span class="poster-badge" style:font-size="{Math.max(11, Math.round(width * 0.2))}px" aria-hidden="true"
-			>{icon}</span
+		<span
+			class="poster-badge"
+			style:font-size="{Math.max(11, Math.round(width * 0.2))}px"
+			aria-hidden="true">{icon}</span
 		>
 	{:else}
 		<span class="poster-fallback" style:font-size="{Math.round(width * 0.5)}px" aria-hidden="true"

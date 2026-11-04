@@ -71,7 +71,9 @@
 			</form>
 		{:else}
 			<form class="stack" onsubmit={request}>
-				<p class="muted small">Enter your email and we'll send you a link to choose a new password.</p>
+				<p class="muted small">
+					Enter your email and we'll send you a link to choose a new password.
+				</p>
 				<div class="field">
 					<label for="rp-email">Email</label>
 					<input

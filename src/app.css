@@ -219,6 +219,8 @@ html {
 	-webkit-text-size-adjust: 100%;
 	text-size-adjust: 100%;
 	background: var(--bg);
+	/* Reserve the scrollbar so centred content doesn't jump sideways when a list grows. */
+	scrollbar-gutter: stable;
 }
 
 body {
@@ -837,8 +839,7 @@ kbd {
 }
 .poster-initial {
 	font-family: var(--font-serif);
-	font-weight: 500;
-	font-style: italic;
+	font-weight: 560;
 	line-height: 1;
 	letter-spacing: -0.02em;
 	transform: translateY(-4%);
