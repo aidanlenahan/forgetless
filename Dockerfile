@@ -39,7 +39,9 @@ COPY --from=build --chown=node:node /app/src/lib/server ./src/lib/server
 COPY --from=build --chown=node:node /app/src/lib/shared ./src/lib/shared
 COPY --chmod=755 docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
-RUN mkdir -p /data && chown node:node /data
+# Strip CRLF in case the repo was checked out on Windows with core.autocrlf (breaks the #! line).
+RUN sed -i 's/\r$//' /usr/local/bin/docker-entrypoint.sh \
+ && mkdir -p /data && chown node:node /data
 VOLUME /data
 EXPOSE 3000
 
